@@ -15,7 +15,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (clone|clear|update-desc).'
+    help = 'Command to be performed (add|update-dir|clear|update-desc).'
 )
 
 args_parser.add_argument(
@@ -377,9 +377,20 @@ root_directory = git_find_root_path()
 if (submodule_list == []):
     print("[F] No submodules in " + root_directory)
 
+# TODO: remove trailing "/"s from args.paths
+
+if (args.cmd[0] == "add"):
+    for path in args.paths:
+        if (path not in submodule_dictionary):
+            new_module = GitSubmodule(path)
+            submodule_dictionary[path] = new_module
+            submodule_list.append(new_module)
+
+    args.cmd[0] = "update-desc"
+
 submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
 
-if (args.cmd[0] == "clone"):
+if (args.cmd[0] == "update-dir"):
     apply_clone_to(submodule_dictionary, root_directory)
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
