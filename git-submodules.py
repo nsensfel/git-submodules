@@ -101,7 +101,7 @@ def git_add_to_gitignore (entry_set, root_path):
         for line in file_stream:
             entry_set.discard(line)
 
-            if (entry_set.isEmpty()):
+            if (len(entry_set) == 0):
                 return
 
         for new_entry in entry_set:
@@ -113,6 +113,15 @@ def git_find_root_path ():
         ['git', 'rev-parse', '--show-toplevel'],
         stdout = subprocess.PIPE
     ).communicate()[0].rstrip().decode('utf-8')
+
+def git_is_repository_root (path):
+    return (
+        subprocess.Popen(
+            ['git', 'rev-parse', '--show-toplevel'],
+            stdout = subprocess.PIPE,
+            cwd = path
+        ).communicate()[0].rstrip().decode('utf-8') == path
+    )
 
 
 class GitSubmodule:
@@ -132,10 +141,10 @@ class GitSubmodule:
         return self.commit
 
     def get_is_enabled (self):
-        return self.is_enabled
+        return self.enabled
 
     def disable (self):
-        self.is_enabled = False
+        self.enabled = False
 
     def add_source (self, source):
         if (not (source in self.get_sources())):
@@ -145,32 +154,33 @@ class GitSubmodule:
         self.commit = commit
 
     def print_to (self, file_stream):
-        print('[submodule "' + self.get_path() + '"]', file_stream)
+        print('[submodule "' + self.get_path() + '"]', file = file_stream)
 
         for source in self.get_sources():
-            print('   source = ' + source, file_stream)
+            print('   source = ' + source, file = file_stream)
 
-        print('   commit = ' + self.get_commit(), file_stream)
+        print('   commit = ' + self.get_commit(), file = file_stream)
 
-        print('   enable = ' + self.get_is_enabled(), file_stream)
+        print('   enable = ' + str(self.get_is_enabled()), file = file_stream)
 
     def clone_repository (self, root_dir):
         repository_dir = root_dir + "/" + self.get_path()
         ensure_directory_exists(repository_dir)
 
-        git_process = subprocess.Popen(
-            ['git', 'checkout', self.commit],
-            cwd = repository_dir
-        )
+        if (git_is_repository_root(repository_dir)):
+            git_process = subprocess.Popen(
+                ['git', 'checkout', self.commit],
+                cwd = repository_dir
+            )
 
-        git_process.wait()
+            git_process.wait()
 
-        if (git_process.returncode == 0):
-            print("Submodule \"" + self.get_path() + "\" checked out.")
+            if (git_process.returncode == 0):
+                print("Submodule \"" + self.get_path() + "\" checked out.")
 
-            return
+                return
 
-        for source in self.sources:
+        for source in self.get_sources():
             print(
                 "Cloning submodule \""
                 + self.get_path()
@@ -212,7 +222,10 @@ class GitSubmodule:
                     + "\"."
                 )
 
-                subprocess.Popen(['rm', '-rf', repository_dir]).wait()
+                subprocess.Popen(
+                    ['rm', '-rf', self.get_path()],
+                    cwd = root_path
+                ).wait()
 
                 print("Removed cloned repository.")
 
@@ -223,20 +236,12 @@ class GitSubmodule:
     def clear_repository (self, root_dir):
         print("Clearing submodule \"" + self.get_path() + "\"...")
 
-        subprocess.Popen(['rm', '-rf', root_dir + self.get_path()]).wait()
+        subprocess.Popen(['rm', '-rf', self.get_path()], cwd = root_dir).wait()
 
         print("Done.")
 
     def update_description (self, root_dir):
-        repository_dir = root_dir + self.get_path()
-
-        self.set_commit(git_get_current_commit_hash(repository_dir))
-
-        for source in git_get_all_remotes(repository_dir):
-            self.add_source(source)
-
-    def update_description (self, root_dir):
-        repository_dir = root_dir + self.get_path()
+        repository_dir = root_dir + "/" + self.get_path()
 
         self.set_commit(git_get_current_commit_hash(repository_dir))
 
@@ -331,7 +336,7 @@ def restrict_dictionary_to (dict_of_submodules, list_of_paths):
 
 def apply_clone_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
-        repo_path = root_path + submodule_path
+        repo_path = root_path + "/" + submodule_path
 
         print("Cloning \"" + repo_path + "\"...")
 
@@ -351,13 +356,13 @@ def apply_clone_to (submodule_dictionary, root_path):
 def apply_clear_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
 
-        submodule_dictionary[submodule_path].clear(root_path)
+        submodule_dictionary[submodule_path].clear_repository(root_path)
 
-        print("Cleared \"" + root_path + submodule_path + "\"...")
+        print("Cleared \"" + root_path + "/" + submodule_path + "\"...")
 
 def apply_update_desc_to (submodules_dictionary, root_path):
     for submodule_path in submodule_dictionary:
-        repo_path = root_path + submodule_path
+        repo_path = root_path + "/" + submodule_path
 
         print("Updating description of \"" + repo_path + "\"...")
 
@@ -369,20 +374,33 @@ root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
+if (submodule_list == []):
+    print("[F] No submodules in " + root_directory)
+
 submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
 
-if (args.cmd == "clone"):
+if (args.cmd[0] == "clone"):
     apply_clone_to(submodule_dictionary, root_directory)
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
         root_directory
     )
 
-elif (args.cmd == "clear"):
+elif (args.cmd[0] == "clear"):
     apply_clear_to(submodule_dictionary, root_directory)
 
-elif (args.cmd == "update-desc"):
+elif (args.cmd[0] == "update-desc"):
+    apply_update_desc_to(submodule_dictionary, root_directory)
+
+    with open(root_directory + "/.gitsubmodules", 'w') as file_stream:
+        for submodule in submodule_list:
+            submodule.print_to(file_stream)
+
+    print("Updated description written.")
+
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
         root_directory
     )
+else:
+    print("[F] Unknown command \"" + args.cmd[0] + "\"")
