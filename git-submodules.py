@@ -99,7 +99,7 @@ def git_get_all_remotes (repo_path):
 def git_add_to_gitignore (entry_set, root_path):
     with open(root_path + "/.gitignore", 'r+') as file_stream:
         for line in file_stream:
-            entry_set.discard(line)
+            entry_set.discard(line.strip())
 
             if (len(entry_set) == 0):
                 return
