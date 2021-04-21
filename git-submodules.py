@@ -189,6 +189,11 @@ class GitSubmodule:
 
         if (git_is_repository_root(repository_dir)):
             git_process = subprocess.Popen(
+                ['git', 'pull'],
+                cwd = repository_dir
+            )
+
+            git_process = subprocess.Popen(
                 ['git', 'checkout', self.commit],
                 cwd = repository_dir
             )
@@ -197,6 +202,20 @@ class GitSubmodule:
 
             if (git_process.returncode == 0):
                 print("Submodule \"" + self.get_path() + "\" checked out.")
+
+            else:
+                print(
+                    "Target commit not available with current source for"
+                    + " submodule \""
+                    + self.get_path()
+                    + "\". Resetting local copy."
+                )
+
+                subprocess.Popen(
+                    ['rm', '-rf', self.get_path()],
+                    cwd = root_dir
+                ).wait()
+                ensure_directory_exists(repository_dir)
 
                 return
 
@@ -244,8 +263,9 @@ class GitSubmodule:
 
                 subprocess.Popen(
                     ['rm', '-rf', self.get_path()],
-                    cwd = root_path
+                    cwd = root_dir
                 ).wait()
+                ensure_directory_exists(repository_dir)
 
                 print("Removed cloned repository.")
 
