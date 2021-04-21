@@ -271,7 +271,15 @@ class GitSubmodule:
 
                 continue
 
-        print("[F] Could not clone submodule \"" + self.get_path() + "\".")
+        print(
+            "[F] Could not clone submodule \""
+            + self.get_path()
+            + "\" into \""
+            + repository_dir
+            +"\".",
+            file = sys.stderr
+        )
+        sys.exit(-1)
 
     def clear_repository (self, root_dir):
         print("Clearing submodule \"" + self.get_path() + "\"...")
@@ -487,10 +495,6 @@ root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
-if (submodule_list == []):
-    print("[F] No submodules in " + root_directory + ".", file = sys.stderr)
-    sys.exit(-1)
-
 args.paths = [path.strip(os.sep) for path in args.paths]
 
 if (args.cmd[0] == "add"):
@@ -501,6 +505,10 @@ if (args.cmd[0] == "add"):
             submodule_list.append(new_module)
 
     args.cmd[0] = "update-desc"
+
+if (submodule_list == []):
+    print("[F] No submodules in " + root_directory + ".", file = sys.stderr)
+    sys.exit(-1)
 
 submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
 
