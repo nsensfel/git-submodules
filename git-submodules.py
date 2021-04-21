@@ -16,7 +16,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (add|status|from-official|rm-dir|update-desc|update-dir)'
+    help = 'Command to be performed (add|status|from-official|rm|rm-desc|rm-dir|update-desc|update-dir)'
 )
 
 args_parser.add_argument(
@@ -439,7 +439,11 @@ def get_submodules_of (repository_path):
     except FileNotFoundError:
         return ([], dict())
 
-def update_submodules_desc_file (repository_path, dict_of_submodules):
+def update_submodules_desc_file (
+    repository_path,
+    dict_of_submodules,
+    paths_to_remove
+):
     config_lines = []
     last_submodule_line_of = dict()
     last_commit_line_of = dict()
@@ -453,16 +457,26 @@ def update_submodules_desc_file (repository_path, dict_of_submodules):
         missing_sources[submodule] = dict_of_submodules[submodule].get_sources()
 
     submodule_path = None
+    read = True
 
     try:
         with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
             for line in file_stream:
-                config_lines.append(line.rstrip())
+                if (read):
+                    config_lines.append(line.rstrip())
 
                 search = re.findall(r'^\s*\[submodule\s*"(.+)"\]', line)
 
                 if (search):
                     submodule_path = search[0].strip(os.sep)
+
+                    if (submodule_path in paths_to_remove):
+                        read = False
+                        config_lines = config_lines[:-1]
+                    elif (not read):
+                        read = True
+                        config_lines.append(line.rstrip())
+
                     last_submodule_line_of[submodule_path] = (
                         len(config_lines) - 1
                     )
@@ -643,14 +657,27 @@ args.paths = [
     ) for path in args.paths
 ]
 
+if (args.cmd[0] == "rm-desc"):
+    update_submodules_desc_file(root_directory, dict(), args.paths)
+
+    sys.exit(0)
+
 if (args.cmd[0] == "from-official"):
-    official_submodules = git_get_official_submodule_paths(root_directory)
 
     if (len(args.paths) == 0):
-        args.paths = official_submodules
+        git_shallow_submodule_init(root_directory, ".")
+        args.paths = git_get_official_submodule_paths(root_directory)
     else:
         for path in args.paths:
-            if (path not in official_submodules):
+            print(
+                "Shallow Official Git Submodule initialization for \""
+                + path
+                + "\"..."
+            )
+            git_shallow_submodule_init(root_directory, path)
+            print("Done.")
+
+            if (path not in git_get_official_submodule_paths(root_directory)):
                 print(
                     "[F] No Official Git Submodule registered at \""
                     + path
@@ -659,14 +686,6 @@ if (args.cmd[0] == "from-official"):
                 )
                 sys.exit(-1)
 
-    for path in args.paths:
-        print(
-            "Shallow Official Git Submodule initialization for \""
-            + path
-            + "\"..."
-        )
-        git_shallow_submodule_init(root_directory, path)
-        print("Done.")
 
     args.cmd[0] = "add"
 
@@ -693,12 +712,15 @@ if (args.cmd[0] == "update-dir"):
     )
 elif (args.cmd[0] == "status"):
     apply_check_to(submodule_dictionary, root_directory)
+elif (args.cmd[0] == "rm"):
+    update_submodules_desc_file(root_directory, dict(), args.paths)
+    apply_clear_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "rm-dir"):
     apply_clear_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "update-desc"):
     apply_update_desc_to(submodule_dictionary, root_directory)
 
-    update_submodules_desc_file(root_directory, submodule_dictionary)
+    update_submodules_desc_file(root_directory, submodule_dictionary, [])
 
     print("Updated description written.")
 
