@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import fileinput
+import sys
 
 args_parser = argparse.ArgumentParser(
     description = ("Git submodules, but useable.")
@@ -15,7 +16,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (add|update-dir|clear|update-desc).'
+    help = 'Command to be performed (add|check|clear|update-desc|update-dir)'
 )
 
 args_parser.add_argument(
@@ -34,13 +35,13 @@ def ensure_directory_exists (dir_name):
    return
 
 def git_get_current_commit_hash (repo_path):
-    git_rev_parse = subprocess.Popen(
+    git_cmd = subprocess.Popen(
         ['git', 'rev-parse', 'HEAD'],
         cwd = repo_path,
         stdout = subprocess.PIPE
     )
 
-    for line in io.TextIOWrapper(git_rev_parse.stdout, encoding="utf-8"):
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
         search = re.findall(r'([a-z0-9]+)', line)
 
         if (search):
@@ -53,9 +54,28 @@ def git_get_current_commit_hash (repo_path):
         file = sys.stderr
     )
 
-    # TODO: crash.
+    sys.exit(-1)
 
     return "HEAD"
+
+def git_repository_has_uncommitted_changes (repo_path):
+    git_cmd = subprocess.Popen(
+        ['git', 'update-index', '--refresh'],
+        cwd = repo_path,
+        stdout = subprocess.PIPE
+    )
+
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        return True
+
+    return False
+
+def git_inflate_official_submodules (repo_path):
+    subprocess.Popen(
+        ['git', 'submodule', 'update', '--init', '--recursive'],
+        cwd = repo_path,
+        stdout = sys.stdout
+    ).wait()
 
 def git_get_all_remotes (repo_path):
     result = []
@@ -248,6 +268,52 @@ class GitSubmodule:
         for source in git_get_all_remotes(repository_dir):
             self.add_source(source)
 
+    def check_description (self, root_dir):
+        repository_dir = root_dir + "/" + self.get_path()
+        is_the_same = True
+
+        currently_used_hash = git_get_current_commit_hash(repository_dir)
+
+        if (currently_used_hash != self.get_commit()):
+            is_the_same = False
+
+            print(
+                "Submodule \""
+                + self.get_path()
+                + "\" is configured to use commit \""
+                + self.get_commit()
+                + "\" but its local clone is on commit \""
+                + currently_used_hash
+                + "\"."
+            )
+
+        for source in git_get_all_remotes(repository_dir):
+            if (source not in self.get_sources()):
+                is_the_same = False
+
+                print(
+                    "The local clone of the submodule \""
+                    + self.get_path()
+                    + "\" has a source not registered in .gitsubmodules: \""
+                    + source
+                    + "\"."
+                )
+
+        if (is_the_same):
+            if (git_repository_has_uncommitted_changes(repository_dir)):
+                print(
+                    "The configuration for the \""
+                    + self.get_path()
+                    + "\" submodule is up-to-date, but there are uncommitted"
+                    + " changes in its repository."
+                )
+            else:
+                print(
+                    "The configuration for the \""
+                    + self.get_path()
+                    + "\" submodule is up-to-date."
+                )
+
     def list_as_a_dict (submodule_list):
         result = dict()
 
@@ -264,7 +330,7 @@ class GitSubmodule:
             search = re.findall(r'\s*\[submodule\s*"(.+)"\]', line)
 
             if search:
-                submodule = GitSubmodule(search[0])
+                submodule = GitSubmodule(search[0].strip(os.sep))
 
                 result.append(submodule)
 
@@ -290,7 +356,16 @@ class GitSubmodule:
             search = re.findall(r'\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
 
             if search:
-                if (bool(search[0]) == False):
+                enable_param_val = search[0].lower()
+                if (
+                    not (
+                        (enable_param_val == "true")
+                        or (enable_param_val == "t")
+                        or (enable_param_val == "yes")
+                        or (enable_param_val == "y")
+                        or (enable_param_val == "1")
+                    )
+                ):
                     submodule.disable()
 
                 continue
@@ -320,12 +395,17 @@ def restrict_dictionary_to (dict_of_submodules, list_of_paths):
         if (path not in dict_of_submodules):
             print("[F] Unknown submodule \"" + path + "\".", file = sys.stderr)
 
-            # TODO: crash
+            sys.exit(-1)
 
             return dict()
         else:
             if (not dict_of_submodules[path].get_is_enabled()):
-                print("[E] Ignoring disabled submodule \"" + path + "\".")
+                print(
+                    "[E] Ignoring disabled submodule \""
+                    + path
+                    + "\".",
+                    file = sys.stderr
+                )
 
                 continue
 
@@ -342,7 +422,12 @@ def apply_clone_to (submodule_dictionary, root_path):
 
         submodule_dictionary[submodule_path].clone_repository(root_path)
 
-        # TODO: inflate all official Git submodules
+        print(
+            "Done. Handling any official Git submodules in \""
+            + repo_path
+            + "\"..."
+        )
+        git_inflate_official_submodules(repo_path)
 
         print("Done. Recursing clone in \"" + repo_path + "\"...")
 
@@ -360,6 +445,11 @@ def apply_clear_to (submodule_dictionary, root_path):
 
         print("Cleared \"" + root_path + "/" + submodule_path + "\"...")
 
+def apply_check_to (submodule_dictionary, root_path):
+    for submodule_path in submodule_dictionary:
+
+        submodule_dictionary[submodule_path].check_description(root_path)
+
 def apply_update_desc_to (submodules_dictionary, root_path):
     for submodule_path in submodule_dictionary:
         repo_path = root_path + "/" + submodule_path
@@ -370,14 +460,18 @@ def apply_update_desc_to (submodules_dictionary, root_path):
 
         print("Done (not written yet).")
 
+################################################################################
+##### MAIN #####################################################################
+################################################################################
 root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
 if (submodule_list == []):
-    print("[F] No submodules in " + root_directory)
+    print("[F] No submodules in " + root_directory + ".", file = sys.stderr)
+    sys.exit(-1)
 
-# TODO: remove trailing "/"s from args.paths
+args.paths = [path.strip(os.sep) for path in args.paths]
 
 if (args.cmd[0] == "add"):
     for path in args.paths:
@@ -396,10 +490,10 @@ if (args.cmd[0] == "update-dir"):
         set([path for path in submodule_dictionary]),
         root_directory
     )
-
+elif (args.cmd[0] == "check"):
+    apply_check_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "clear"):
     apply_clear_to(submodule_dictionary, root_directory)
-
 elif (args.cmd[0] == "update-desc"):
     apply_update_desc_to(submodule_dictionary, root_directory)
 
@@ -414,4 +508,5 @@ elif (args.cmd[0] == "update-desc"):
         root_directory
     )
 else:
-    print("[F] Unknown command \"" + args.cmd[0] + "\"")
+    print("[F] Unknown command \"" + args.cmd[0] + "\".", file = sys.stderr)
+    sys.exit(-1)
