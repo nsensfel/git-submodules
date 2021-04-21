@@ -198,7 +198,7 @@ class GitSubmodule:
 
         if (git_is_repository_root(repository_dir)):
             git_process = subprocess.Popen(
-                ['git', 'pull'],
+                ['git', 'fetch', '--all'],
                 cwd = repository_dir
             )
 
@@ -211,7 +211,7 @@ class GitSubmodule:
 
             if (git_process.returncode == 0):
                 print("Submodule \"" + self.get_path() + "\" checked out.")
-
+                return
             else:
                 print(
                     "Target commit not available with current source for"
@@ -225,8 +225,6 @@ class GitSubmodule:
                     cwd = root_dir
                 ).wait()
                 ensure_directory_exists(repository_dir)
-
-                return
 
         for source in self.get_sources():
             print(
@@ -364,7 +362,7 @@ class GitSubmodule:
         submodule = None
 
         for line in file_stream:
-            search = re.findall(r'\s*\[submodule\s*"(.+)"\]', line)
+            search = re.findall(r'^\s*\[submodule\s*"(.+)"\]', line)
 
             if search:
                 submodule = GitSubmodule(search[0].strip(os.sep))
@@ -376,21 +374,21 @@ class GitSubmodule:
             if (not submodule):
                 continue
 
-            search = re.findall(r'\s*source\s*=\s*([^\s].*[^\s])\s*', line)
+            search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
 
             if search:
                 submodule.add_source(search[0])
 
                 continue
 
-            search = re.findall(r'\s*commit\s*=\s*([^\s].*[^\s])\s*', line)
+            search = re.findall(r'^\s*commit\s*=\s*([^\s].*[^\s])\s*', line)
 
             if search:
                 submodule.set_commit(search[0])
 
                 continue
 
-            search = re.findall(r'\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
+            search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
 
             if search:
                 enable_param_val = search[0].lower()
