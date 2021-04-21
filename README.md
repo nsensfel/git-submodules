@@ -36,7 +36,10 @@ Available commands:
    Official Git Submodules are also loaded in each of these clones. Paths to
    the submodule clones are added to `.gitignore` if not already present.
 * `rm-dir` Removes the local clone of the submodule (keeps the description).
-* `from-official` Add Official Git Submodules to the description.
+* `rm-desc` Removes the description of the submodule (keeps the local clone).
+* `rm` Removes both the local clone and the description of the submodule.
+* `from-official` Add Official Git Submodules to the description
+   (and to `.gitignore`)
 
 ## Example of .gitsubmodules
 ```
