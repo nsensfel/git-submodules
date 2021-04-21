@@ -26,7 +26,7 @@ Available commands:
 * `add` Modifies `.gitsubmodules` to register or update the description of the
    selected submodules and/or paths. Said paths are added to `.gitignore` if not
    already present.
-* `check` Prints information about any mismatch between the submodules'
+* `status` Prints information about any mismatch between the submodules'
    description and their clone within the working tree.
 * `update-desc` Updates `.gitsubmodules` so that each submodule's description
    matches its clone within the working tree. Their paths are added to
@@ -35,6 +35,8 @@ Available commands:
    according to their description in `.gitsubmodules`. This is done recursively.
    Official Git Submodules are also loaded in each of these clones. Paths to
    the submodule clones are added to `.gitignore` if not already present.
+* `rm-dir` Removes the local clone of the submodule (keeps the description).
+* `from-official` Add Official Git Submodules to the description.
 
 ## Example of .gitsubmodules
 ```

@@ -16,7 +16,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (add|check|clear|update-desc|update-dir)'
+    help = 'Command to be performed (add|status|from-official|rm-dir|update-desc|update-dir)'
 )
 
 args_parser.add_argument(
@@ -73,6 +73,28 @@ def git_repository_has_uncommitted_changes (repo_path):
 def git_inflate_official_submodules (repo_path):
     subprocess.Popen(
         ['git', 'submodule', 'update', '--init', '--recursive'],
+        cwd = repo_path,
+        stdout = sys.stdout
+    ).wait()
+
+def git_get_official_submodule_paths (repo_path):
+    result = []
+
+    git_cmd = subprocess.Popen(
+        ["git submodule --quiet foreach 'echo $path'"],
+        shell = True, # This is apparently needed for echo to be defined.
+        cwd = repo_path,
+        stdout = subprocess.PIPE
+    )
+
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        result.append(line.strip())
+
+    return result
+
+def git_shallow_submodule_init (repo_path, module_path):
+    subprocess.Popen(
+        ['git', 'submodule', 'update', '--init', module_path],
         cwd = repo_path,
         stdout = sys.stdout
     ).wait()
@@ -484,6 +506,33 @@ root_directory = git_find_root_path()
 
 args.paths = [path.strip(os.sep) for path in args.paths]
 
+if (args.cmd[0] == "from-official"):
+    official_submodules = git_get_official_submodule_paths(root_directory)
+
+    if (len(args.paths) == 0):
+        args.paths = official_submodules
+    else:
+        for path in args.paths:
+            if (path not in official_submodules):
+                print(
+                    "[F] No Official Git Submodule registered at \""
+                    + path
+                    + "\".",
+                    file = sys.stderr
+                )
+                sys.exit(-1)
+
+    for path in args.paths:
+        print(
+            "Shallow Official Git Submodule initialization for \""
+            + path
+            + "\"..."
+        )
+        git_shallow_submodule_init(root_directory, path)
+        print("Done.")
+
+    args.cmd[0] = "add"
+
 if (args.cmd[0] == "add"):
     for path in args.paths:
         if (path not in submodule_dictionary):
@@ -505,9 +554,9 @@ if (args.cmd[0] == "update-dir"):
         set([path for path in submodule_dictionary]),
         root_directory
     )
-elif (args.cmd[0] == "check"):
+elif (args.cmd[0] == "status"):
     apply_check_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] == "clear"):
+elif (args.cmd[0] == "rm-dir"):
     apply_clear_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "update-desc"):
     apply_update_desc_to(submodule_dictionary, root_directory)
