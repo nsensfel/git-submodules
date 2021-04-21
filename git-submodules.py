@@ -37,6 +37,20 @@ def ensure_directory_exists (dir_name):
 
    return
 
+def resolve_relative_path (repo_root_path, current_dir, file_or_dir):
+    full_path = os.path.normpath(current_dir + "/" + file_or_dir)
+    extra_prefix = os.path.commonprefix([repo_root_path, full_path])
+    result = full_path[len(extra_prefix):]
+
+    if (len(result) == 0):
+        extra_prefix = os.path.commonprefix([repo_root_path, file_or_dir])
+        result = file_or_dir[len(extra_prefix):]
+
+    if ((len(result) > 0) and (result[0] == '/')):
+        result = result[1:]
+
+    return result
+
 ################################################################################
 ##### GIT COMMANDS #############################################################
 ################################################################################
@@ -360,7 +374,7 @@ class GitSubmodule:
     def parse_all (file_stream):
         result_as_list = list()
         result_as_dict = dict()
-        
+
         submodule = None
 
         for line in file_stream:
@@ -514,7 +528,7 @@ def update_submodules_desc_file (repository_path, dict_of_submodules):
             "   enable = " + str(submodule.get_is_enabled())
         )
 
-        for source in missing_sources[submodule_path]: 
+        for source in missing_sources[submodule_path]:
             config_lines.insert(
                 write_index + 1,
                 "   source = " + source
@@ -524,7 +538,7 @@ def update_submodules_desc_file (repository_path, dict_of_submodules):
     with open(repository_path + "/.gitsubmodules", 'w') as file_stream:
         for line in config_lines:
             print(line, file = file_stream)
-    
+
 def restrict_dictionary_to (dict_of_submodules, list_of_paths):
     if (list_of_paths == []):
         return dict_of_submodules
@@ -616,11 +630,18 @@ def apply_update_desc_to (submodules_dictionary, root_path):
 ################################################################################
 ##### MAIN #####################################################################
 ################################################################################
+current_directory = os.getcwd()
 root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
-args.paths = [path.strip(os.sep) for path in args.paths]
+args.paths = [
+    resolve_relative_path(
+        root_directory,
+        current_directory,
+        path.strip(os.sep)
+    ) for path in args.paths
+]
 
 if (args.cmd[0] == "from-official"):
     official_submodules = git_get_official_submodule_paths(root_directory)
