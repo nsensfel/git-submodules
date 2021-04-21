@@ -349,25 +349,24 @@ class GitSubmodule:
                     + "\" submodule is up-to-date."
                 )
 
-    def list_as_a_dict (submodule_list):
-        result = dict()
-
-        for submodule in submodule_list:
-            result[submodule.get_path()] = submodule
-
-        return result
-
     def parse_all (file_stream):
-        result = list()
+        result_as_list = list()
+        result_as_dict = dict()
+        
         submodule = None
 
         for line in file_stream:
             search = re.findall(r'^\s*\[submodule\s*"(.+)"\]', line)
 
             if search:
-                submodule = GitSubmodule(search[0].strip(os.sep))
+                path = search[0].strip(os.sep)
 
-                result.append(submodule)
+                if (path in result_as_dict):
+                   submodule = result_as_dict[path]
+                else:
+                   submodule = GitSubmodule(search[0].strip(os.sep))
+                   result_as_dict[path] = submodule
+                   result_as_list.append(submodule)
 
                 continue
 
@@ -405,20 +404,15 @@ class GitSubmodule:
 
                 continue
 
-        return result
-
+        return (result_as_list, result_as_dict)
 
 def get_submodules_of (repository_path):
-    as_list = []
-
     try:
         with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
-            as_list = GitSubmodule.parse_all(file_stream)
+            return GitSubmodule.parse_all(file_stream)
 
     except FileNotFoundError:
-        as_list = []
-
-    return (as_list, GitSubmodule.list_as_a_dict(as_list))
+        return ([], dict())
 
 def restrict_dictionary_to (dict_of_submodules, list_of_paths):
     if (list_of_paths == []):
@@ -446,11 +440,14 @@ def restrict_dictionary_to (dict_of_submodules, list_of_paths):
 
             result[path] = dict_of_submodules[path]
 
-
     return result
 
 def apply_clone_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
+        if (not submodule_dictionary[submodule_path].get_is_enabled()):
+            print("Skipping disabled submodule \"" + submodule_path + "\".")
+            continue
+
         repo_path = root_path + "/" + submodule_path
 
         print("Cloning \"" + repo_path + "\"...")
@@ -475,6 +472,9 @@ def apply_clone_to (submodule_dictionary, root_path):
 
 def apply_clear_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
+        if (not submodule_dictionary[submodule_path].get_is_enabled()):
+            print("Skipping disabled submodule \"" + submodule_path + "\".")
+            continue
 
         submodule_dictionary[submodule_path].clear_repository(root_path)
 
@@ -482,11 +482,18 @@ def apply_clear_to (submodule_dictionary, root_path):
 
 def apply_check_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
+        if (not submodule_dictionary[submodule_path].get_is_enabled()):
+            print("Skipping disabled submodule \"" + submodule_path + "\".")
+            continue
 
         submodule_dictionary[submodule_path].check_description(root_path)
 
 def apply_update_desc_to (submodules_dictionary, root_path):
     for submodule_path in submodule_dictionary:
+        if (not submodule_dictionary[submodule_path].get_is_enabled()):
+            print("Skipping disabled submodule \"" + submodule_path + "\".")
+            continue
+
         repo_path = root_path + "/" + submodule_path
 
         print("Updating description of \"" + repo_path + "\"...")
