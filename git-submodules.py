@@ -78,41 +78,28 @@ def git_inflate_official_submodules (repo_path):
     ).wait()
 
 def git_get_all_remotes (repo_path):
+    remote_names = []
+
+    git_cmd = subprocess.Popen(
+        ['git', 'remote'],
+        cwd = repo_path,
+        stdout = subprocess.PIPE
+    )
+
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        remote_names.append(line.strip())
+
     result = []
-    gitconfig_file = repo_path + "/.git/config"
 
-    should_read_url = False
-
-    try:
-        with open(gitconfig_file, 'r') as file_stream:
-            for line in file_stream:
-                search = re.findall(r'\s*\[remote\s*"(.+)"\]', line)
-
-                if search:
-                    should_read_url = True
-
-                    continue
-
-                if (should_read_url):
-                    search = re.findall(r'\s*url\s*=\s*([^\s].*[^\s])\s*', line)
-
-                    if (search):
-                        result.append(search[0])
-
-                        continue
-
-                    search = re.findall(r'\s*\[', line)
-
-                    if search:
-                        should_read_url = False
-
-    except FileNotFoundError:
-        print(
-            "[E] Could not find file \""
-            + gitconfig_file
-            + "\".",
-            file = sys.stderr
+    for remote_name in remote_names:
+        git_cmd = subprocess.Popen(
+            ['git', 'remote', 'get-url', '--all', remote_name],
+            cwd = repo_path,
+            stdout = subprocess.PIPE
         )
+
+        for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+            result.append(line.strip())
 
     return result
 
