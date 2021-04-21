@@ -29,11 +29,17 @@ args_parser.add_argument(
 
 args = args_parser.parse_args()
 
+################################################################################
+##### OS COMMANDS ##############################################################
+################################################################################
 def ensure_directory_exists (dir_name):
    subprocess.Popen(['mkdir', '-p', dir_name]).wait()
 
    return
 
+################################################################################
+##### GIT COMMANDS #############################################################
+################################################################################
 def git_get_current_commit_hash (repo_path):
     git_cmd = subprocess.Popen(
         ['git', 'rev-parse', 'HEAD'],
@@ -152,7 +158,9 @@ def git_is_repository_root (path):
         ).communicate()[0].rstrip().decode('utf-8') == path
     )
 
-
+################################################################################
+##### GIT SUBMODULE CLASS ######################################################
+################################################################################
 class GitSubmodule:
     def __init__ (self, path):
         self.path = path
@@ -406,6 +414,9 @@ class GitSubmodule:
 
         return (result_as_list, result_as_dict)
 
+################################################################################
+##### GENERAL ##################################################################
+################################################################################
 def get_submodules_of (repository_path):
     try:
         with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
@@ -414,6 +425,106 @@ def get_submodules_of (repository_path):
     except FileNotFoundError:
         return ([], dict())
 
+def update_submodules_desc_file (repository_path, dict_of_submodules):
+    config_lines = []
+    last_submodule_line_of = dict()
+    last_commit_line_of = dict()
+    last_enable_line_of = dict()
+    missing_sources = dict()
+
+    for submodule in dict_of_submodules:
+        last_submodule_line_of[submodule] = -1
+        last_commit_line_of[submodule] = -1
+        last_enable_line_of[submodule] = -1
+        missing_sources[submodule] = dict_of_submodules[submodule].get_sources()
+
+    submodule_path = None
+
+    try:
+        with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
+            for line in file_stream:
+                config_lines.append(line.rstrip())
+
+                search = re.findall(r'^\s*\[submodule\s*"(.+)"\]', line)
+
+                if (search):
+                    submodule_path = search[0].strip(os.sep)
+                    last_submodule_line_of[submodule_path] = (
+                        len(config_lines) - 1
+                    )
+                    continue
+
+                if (not submodule_path):
+                    continue
+
+                search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
+
+                if (search and (submodule_path in missing_sources)):
+                    missing_sources[submodule_path].remove(search[0])
+                    continue
+
+                search = re.findall(r'^\s*commit\s*=\s*([^\s].*[^\s])\s*', line)
+
+                if (search):
+                    last_commit_line_of[submodule_path] = len(config_lines) - 1
+                    continue
+
+                search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
+
+                if (search):
+                    last_enable_line_of[submodule_path] = len(config_lines) - 1
+                    continue
+
+    except FileNotFoundError:
+        print(
+            "No \""
+            + repository_path
+            + "/.gitsubmodules\" file found. It will be created."
+        )
+
+    for submodule_path in dict_of_submodules:
+        submodule = dict_of_submodules[submodule_path]
+
+        write_index = last_submodule_line_of[submodule_path]
+        if (write_index == -1):
+            config_lines.append("[submodule \"" + submodule_path + "\"]")
+            write_index = len(config_lines) - 1
+
+        last_commit_line = last_commit_line_of[submodule_path]
+        if (last_commit_line == -1):
+            config_lines.insert(
+                write_index + 1,
+                "   commit = " + submodule.get_commit()
+            )
+            write_index = write_index + 1
+            last_commit_line = write_index
+
+        config_lines[last_commit_line] = "   commit = " + submodule.get_commit()
+
+        last_enable_line = last_enable_line_of[submodule_path]
+        if (last_enable_line == -1):
+            config_lines.insert(
+                write_index + 1,
+                "   enable = " + str(submodule.get_is_enabled())
+            )
+            write_index = write_index + 1
+            last_enable_line = write_index
+
+        config_lines[last_enable_line] = (
+            "   enable = " + str(submodule.get_is_enabled())
+        )
+
+        for source in missing_sources[submodule_path]: 
+            config_lines.insert(
+                write_index + 1,
+                "   source = " + source
+            )
+            write_index = write_index + 1
+
+    with open(repository_path + "/.gitsubmodules", 'w') as file_stream:
+        for line in config_lines:
+            print(line, file = file_stream)
+    
 def restrict_dictionary_to (dict_of_submodules, list_of_paths):
     if (list_of_paths == []):
         return dict_of_submodules
@@ -566,9 +677,7 @@ elif (args.cmd[0] == "rm-dir"):
 elif (args.cmd[0] == "update-desc"):
     apply_update_desc_to(submodule_dictionary, root_directory)
 
-    with open(root_directory + "/.gitsubmodules", 'w') as file_stream:
-        for submodule in submodule_list:
-            submodule.print_to(file_stream)
+    update_submodules_desc_file(root_directory, submodule_dictionary)
 
     print("Updated description written.")
 
