@@ -146,15 +146,25 @@ def git_get_all_remotes (repo_path):
     return result
 
 def git_add_to_gitignore (entry_set, root_path):
-    with open(root_path + "/.gitignore", 'r+') as file_stream:
-        for line in file_stream:
-            entry_set.discard(line.strip())
+    try:
+        with open(root_path + "/.gitignore", 'r+') as file_stream:
+            for line in file_stream:
+                entry_set.discard(line.strip())
 
-            if (len(entry_set) == 0):
-                return
+                if (len(entry_set) == 0):
+                    return
 
-        for new_entry in entry_set:
-            print(new_entry, file=file_stream)
+            for new_entry in entry_set:
+                print(new_entry, file=file_stream)
+    except FileNotFoundError:
+        print(
+            "No \""
+            + root_path
+            + "/.gitignore\" file found. It will be created."
+        )
+        with open(root_path + "/.gitignore", 'w') as file_stream:
+            for new_entry in entry_set:
+                print(new_entry, file=file_stream)
 
 def git_find_root_path ():
     # from https://stackoverflow.com/questions/22081209/find-the-root-of-the-git-repository-where-the-file-lives
