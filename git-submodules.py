@@ -76,7 +76,7 @@ def git_get_current_commit_hash (repo_path):
 
     sys.exit(-1)
 
-    return "HEAD"
+    return ""
 
 def git_repository_has_uncommitted_changes (repo_path):
     git_cmd = subprocess.Popen(
@@ -179,7 +179,7 @@ class GitSubmodule:
     def __init__ (self, path):
         self.path = path
         self.sources = []
-        self.commit = "HEAD"
+        self.commit = None
         self.enabled = True
 
     def get_path (self):
@@ -320,6 +320,27 @@ class GitSubmodule:
     def update_description (self, root_dir):
         repository_dir = root_dir + "/" + self.get_path()
 
+        if (not os.path.exists(repository_dir)):
+            print(
+                "[E] Submodule \""
+                + self.get_path()
+                + "\" has no directory to update its description from. Skipped."
+            )
+
+            return
+
+        if (not git_is_repository_root(repository_dir)):
+            print(
+                "[E] The directory for submodule \""
+                + self.get_path()
+                + "\" is not a Git repository and thus cannot be used to update"
+                + " its description. Skipped.",
+                file = sys.stderr
+            )
+
+            return
+
+
         self.set_commit(git_get_current_commit_hash(repository_dir))
 
         for source in git_get_all_remotes(repository_dir):
@@ -328,6 +349,24 @@ class GitSubmodule:
     def check_description (self, root_dir):
         repository_dir = root_dir + "/" + self.get_path()
         is_the_same = True
+
+        if (not os.path.exists(repository_dir)):
+            print(
+                "Submodule \""
+                + self.get_path()
+                + "\" has no directory to compare to."
+            )
+
+            return
+
+        if (not git_is_repository_root(repository_dir)):
+            print(
+                "The directory for submodule \""
+                + self.get_path()
+                + "\" is not a Git repository."
+            )
+
+            return
 
         currently_used_hash = git_get_current_commit_hash(repository_dir)
 
@@ -513,6 +552,15 @@ def update_submodules_desc_file (
     for submodule_path in dict_of_submodules:
         submodule = dict_of_submodules[submodule_path]
 
+        if (submodule.get_commit() == None):
+            print(
+                "Skipping description update for submodule \""
+                + submodule_path
+                + "\" as it had no designed commit target."
+            )
+
+            continue
+
         write_index = last_submodule_line_of[submodule_path]
         if (write_index == -1):
             config_lines.append("[submodule \"" + submodule_path + "\"]")
@@ -658,14 +706,18 @@ args.paths = [
 ]
 
 if (args.cmd[0] == "rm-desc"):
+    if (len(args.paths) == 0):
+        args.paths = [path for path in submodule_dictionary]
+
     update_submodules_desc_file(root_directory, dict(), args.paths)
 
     sys.exit(0)
 
 if (args.cmd[0] == "from-official"):
-
     if (len(args.paths) == 0):
+        print("Shallow initialization of all Official Git Submodules...")
         git_shallow_submodule_init(root_directory, ".")
+        print("Done.")
         args.paths = git_get_official_submodule_paths(root_directory)
     else:
         for path in args.paths:
@@ -713,6 +765,9 @@ if (args.cmd[0] == "update-dir"):
 elif (args.cmd[0] == "status"):
     apply_check_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "rm"):
+    if (len(args.paths) == 0):
+        args.paths = [path for path in submodule_dictionary]
+
     update_submodules_desc_file(root_directory, dict(), args.paths)
     apply_clear_to(submodule_dictionary, root_directory)
 elif (args.cmd[0] == "rm-dir"):
