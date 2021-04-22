@@ -22,7 +22,7 @@ for submodules.
 * `$ git-submodules.py COMMAND PATH0 PATH1 ...` will apply `COMMAND` to the
 submodules `PATH0`, `PATH1`, and so on...
 
-Available commands:
+**Basic commands:**
 * `add` Modifies `.gitsubmodules` to register or update the description of the
    selected submodules and/or paths. Said paths are added to `.gitignore` if not
    already present.
@@ -35,11 +35,15 @@ Available commands:
    according to their description in `.gitsubmodules`. This is done recursively.
    Official Git Submodules are also loaded in each of these clones. Paths to
    the submodule clones are added to `.gitignore` if not already present.
+
+**More advanced commands:**
+Available commands:
 * `rm-dir` Removes the local clone of the submodule (keeps the description).
 * `rm-desc` Removes the description of the submodule (keeps the local clone).
 * `rm` Removes both the local clone and the description of the submodule.
 * `from-official` Add Official Git Submodules to the description
    (and to `.gitignore`)
+* `seek` Lists sub-repositories that could be added as submodules.
 
 ## Example of .gitsubmodules
 ```
