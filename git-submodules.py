@@ -16,7 +16,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (add|status|from-official|rm|rm-desc|rm-dir|update-desc|update-dir)'
+    help = 'Command to be performed (add|seek|status|from-official|rm|rm-desc|rm-dir|update-desc|update-dir)'
 )
 
 args_parser.add_argument(
@@ -39,17 +39,40 @@ def ensure_directory_exists (dir_name):
 
 def resolve_relative_path (repo_root_path, current_dir, file_or_dir):
     full_path = os.path.normpath(current_dir + "/" + file_or_dir)
-    extra_prefix = os.path.commonprefix([repo_root_path, full_path])
-    result = full_path[len(extra_prefix):]
 
-    if (len(result) == 0):
+    if (os.path.exists(full_path)):
+        extra_prefix = os.path.commonprefix([repo_root_path, full_path])
+        result = full_path[len(extra_prefix):]
+
+    elif (os.path.exists(file_or_dir)):
         extra_prefix = os.path.commonprefix([repo_root_path, file_or_dir])
         result = file_or_dir[len(extra_prefix):]
+
+    else:
+        return file_or_dir
 
     if ((len(result) > 0) and (result[0] == '/')):
         result = result[1:]
 
     return result
+
+def resolve_absolute_path (repo_root_path, current_dir, file_or_dir):
+    full_path = os.path.normpath(current_dir + "/" + file_or_dir)
+
+    if (os.path.exists(full_path)):
+        return full_path
+
+    full_path = os.path.normpath(repo_root_path + "/" + file_or_dir)
+
+    if (os.path.exists(full_path)):
+        return full_path
+
+    return file_or_dir
+
+def get_path_of_direct_subdirectories (path, filter_out_list):
+    result = set(next(os.walk(path))[1])
+    result = result.difference(set(filter_out_list))
+    return [path + "/" + directory for directory in result]
 
 ################################################################################
 ##### GIT COMMANDS #############################################################
@@ -699,6 +722,26 @@ def apply_update_desc_to (submodules_dictionary, root_path):
 
         print("Done (not written yet).")
 
+def list_all_non_submodule_subrepositories (
+    submodules_dictionary,
+    search_paths,
+    root_path
+):
+    filter_out = [root_path + "/" + path for path in submodules_dictionary]
+    exploration_targets = search_paths
+
+    while (len(exploration_targets) > 0):
+        candidate = exploration_targets.pop()
+
+        if (candidate in filter_out):
+            continue
+        elif (git_is_repository_root(candidate)):
+            print(candidate)
+        else:
+            exploration_targets.extend(
+                get_path_of_direct_subdirectories(candidate, [".git"])
+            )
+
 ################################################################################
 ##### MAIN #####################################################################
 ################################################################################
@@ -707,13 +750,37 @@ root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
+if (args.cmd[0] == "seek"):
+    args.paths = [
+        resolve_absolute_path(root_directory, current_directory, path)
+        for path in args.paths
+    ]
+    args.paths = [
+        path
+        for path in args.paths if (
+            os.path.isdir(path) and (path != root_directory)
+        )
+    ]
+
+    if (len(args.paths) == 0):
+        args.paths = get_path_of_direct_subdirectories(root_directory, [".git"])
+
+    list_all_non_submodule_subrepositories (
+        submodule_dictionary,
+        args.paths,
+        root_directory
+    )
+
+    sys.exit(0)
+
 args.paths = [
     resolve_relative_path(
         root_directory,
         current_directory,
-        path.strip(os.sep)
+        path.rstrip(os.sep)
     ) for path in args.paths
 ]
+
 
 if (args.cmd[0] == "rm-desc"):
     if (len(args.paths) == 0):
