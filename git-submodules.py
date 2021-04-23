@@ -8,6 +8,56 @@ import subprocess
 import fileinput
 import sys
 
+################################################################################
+##### ARGUMENTS HANDLING #######################################################
+################################################################################
+aliases = dict()
+aliases['add'] = ["add"]
+aliases['seek'] = ["seek", "suggest"]
+aliases['status'] = ["status", "info"]
+aliases['from-official'] = ["from-official"]
+aliases['rm'] = ["rm", "remove"]
+aliases['rm-desc'] = [
+    "rm-desc",
+    "rm-description",
+    "desc-rm",
+    "description-rm",
+    "remove-desc",
+    "remove-description",
+    "desc-remove",
+    "description-remove"
+]
+aliases['rm-dir'] = [
+    "rm-dir",
+    "rm-directory",
+    "dir-rm",
+    "directory-rm",
+    "remove-dir",
+    "remove-directory",
+    "dir-remove",
+    "directory-remove"
+]
+aliases['up-desc'] = [
+    "up-desc",
+    "up-description",
+    "desc-up",
+    "description-up",
+    "update-desc",
+    "update-description",
+    "desc-update",
+    "description-update"
+]
+aliases['up-dir'] = [
+    "up-dir",
+    "up-directory",
+    "dir-up",
+    "directory-up",
+    "update-dir",
+    "update-directory",
+    "dir-update",
+    "directory-update"
+]
+
 args_parser = argparse.ArgumentParser(
     description = ("Git submodules, but useable.")
 )
@@ -38,7 +88,7 @@ def ensure_directory_exists (dir_name):
    return
 
 def resolve_relative_path (repo_root_path, current_dir, file_or_dir):
-    full_path = os.path.normpath(current_dir + "/" + file_or_dir)
+    full_path = os.path.normpath(current_dir + os.sep + file_or_dir)
 
     if (os.path.exists(full_path)):
         extra_prefix = os.path.commonprefix([repo_root_path, full_path])
@@ -57,12 +107,12 @@ def resolve_relative_path (repo_root_path, current_dir, file_or_dir):
     return result
 
 def resolve_absolute_path (repo_root_path, current_dir, file_or_dir):
-    full_path = os.path.normpath(current_dir + "/" + file_or_dir)
+    full_path = os.path.normpath(current_dir + os.sep + file_or_dir)
 
     if (os.path.exists(full_path)):
         return full_path
 
-    full_path = os.path.normpath(repo_root_path + "/" + file_or_dir)
+    full_path = os.path.normpath(repo_root_path + os.sep + file_or_dir)
 
     if (os.path.exists(full_path)):
         return full_path
@@ -72,7 +122,7 @@ def resolve_absolute_path (repo_root_path, current_dir, file_or_dir):
 def get_path_of_direct_subdirectories (path, filter_out_list):
     result = set(next(os.walk(path))[1])
     result = result.difference(set(filter_out_list))
-    return [path + "/" + directory for directory in result]
+    return [path + os.sep + directory for directory in result]
 
 ################################################################################
 ##### GIT COMMANDS #############################################################
@@ -248,7 +298,7 @@ class GitSubmodule:
         print('   enable = ' + str(self.get_is_enabled()), file = file_stream)
 
     def clone_repository (self, root_dir):
-        repository_dir = root_dir + "/" + self.get_path()
+        repository_dir = root_dir + os.sep + self.get_path()
         ensure_directory_exists(repository_dir)
 
         if (git_is_repository_root(repository_dir)):
@@ -351,7 +401,7 @@ class GitSubmodule:
         print("Done.")
 
     def update_description (self, root_dir):
-        repository_dir = root_dir + "/" + self.get_path()
+        repository_dir = root_dir + os.sep + self.get_path()
 
         if (not os.path.exists(repository_dir)):
             print(
@@ -380,7 +430,7 @@ class GitSubmodule:
             self.add_source(source)
 
     def check_description (self, root_dir):
-        repository_dir = root_dir + "/" + self.get_path()
+        repository_dir = root_dir + os.sep + self.get_path()
         is_the_same = True
 
         if (not os.path.exists(repository_dir)):
@@ -668,7 +718,7 @@ def apply_clone_to (submodule_dictionary, root_path):
             print("Skipping disabled submodule \"" + submodule_path + "\".")
             continue
 
-        repo_path = root_path + "/" + submodule_path
+        repo_path = root_path + os.sep + submodule_path
 
         print("Cloning \"" + repo_path + "\"...")
 
@@ -698,7 +748,7 @@ def apply_clear_to (submodule_dictionary, root_path):
 
         submodule_dictionary[submodule_path].clear_repository(root_path)
 
-        print("Cleared \"" + root_path + "/" + submodule_path + "\"...")
+        print("Cleared \"" + root_path + os.sep + submodule_path + "\"...")
 
 def apply_check_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
@@ -714,7 +764,7 @@ def apply_update_desc_to (submodules_dictionary, root_path):
             print("Skipping disabled submodule \"" + submodule_path + "\".")
             continue
 
-        repo_path = root_path + "/" + submodule_path
+        repo_path = root_path + os.sep + submodule_path
 
         print("Updating description of \"" + repo_path + "\"...")
 
@@ -727,7 +777,7 @@ def list_all_non_submodule_subrepositories (
     search_paths,
     root_path
 ):
-    filter_out = [root_path + "/" + path for path in submodules_dictionary]
+    filter_out = [root_path + os.sep + path for path in submodules_dictionary]
     exploration_targets = search_paths
 
     while (len(exploration_targets) > 0):
