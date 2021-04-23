@@ -800,7 +800,7 @@ root_directory = git_find_root_path()
 
 (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
 
-if (args.cmd[0] == "seek"):
+if (args.cmd[0] in aliases['seek']):
     args.paths = [
         resolve_absolute_path(root_directory, current_directory, path)
         for path in args.paths
@@ -831,8 +831,7 @@ args.paths = [
     ) for path in args.paths
 ]
 
-
-if (args.cmd[0] == "rm-desc"):
+if (args.cmd[0] in aliases['rm-desc']):
     if (len(args.paths) == 0):
         args.paths = [path for path in submodule_dictionary]
 
@@ -840,7 +839,7 @@ if (args.cmd[0] == "rm-desc"):
 
     sys.exit(0)
 
-if (args.cmd[0] == "from-official"):
+if (args.cmd[0] in aliases['from-official']):
     if (len(args.paths) == 0):
         print("Shallow initialization of all Official Git Submodules...")
         git_shallow_submodule_init(root_directory, ".")
@@ -868,7 +867,7 @@ if (args.cmd[0] == "from-official"):
 
     args.cmd[0] = "add"
 
-if (args.cmd[0] == "add"):
+if (args.cmd[0] in aliases['add']):
     for path in args.paths:
         if (path not in submodule_dictionary):
             new_module = GitSubmodule(path)
@@ -883,23 +882,23 @@ if (submodule_list == []):
 
 submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
 
-if (args.cmd[0] == "update-dir"):
+if (args.cmd[0] in aliases['up-dir']):
     apply_clone_to(submodule_dictionary, root_directory)
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
         root_directory
     )
-elif (args.cmd[0] == "status"):
+elif (args.cmd[0] in aliases['status']):
     apply_check_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] == "rm"):
+elif (args.cmd[0] in aliases['rm']):
     if (len(args.paths) == 0):
         args.paths = [path for path in submodule_dictionary]
 
     update_submodules_desc_file(root_directory, dict(), args.paths)
     apply_clear_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] == "rm-dir"):
+elif (args.cmd[0] in aliases['rm-dir']):
     apply_clear_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] == "update-desc"):
+elif (args.cmd[0] in aliases['up-desc']):
     apply_update_desc_to(submodule_dictionary, root_directory)
 
     update_submodules_desc_file(root_directory, submodule_dictionary, [])
