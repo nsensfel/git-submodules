@@ -220,7 +220,7 @@ def git_get_all_remotes (repo_path):
 
 def git_add_to_gitignore (entry_set, root_path):
     try:
-        with open(root_path + "/.gitignore", 'r+') as file_stream:
+        with open(root_path + os.sep + ".gitignore", 'r+') as file_stream:
             for line in file_stream:
                 entry_set.discard(line.strip())
 
@@ -233,9 +233,10 @@ def git_add_to_gitignore (entry_set, root_path):
         print(
             "No \""
             + root_path
-            + "/.gitignore\" file found. It will be created."
+            + os.sep
+            + ".gitignore\" file found. It will be created."
         )
-        with open(root_path + "/.gitignore", 'w') as file_stream:
+        with open(root_path + os.sep + ".gitignore", 'w') as file_stream:
             for new_entry in entry_set:
                 print(new_entry, file=file_stream)
 
@@ -555,7 +556,7 @@ class GitSubmodule:
 ################################################################################
 def get_submodules_of (repository_path):
     try:
-        with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
+        with open(repository_path + os.sep + ".gitsubmodules", 'r') as file_stream:
             return GitSubmodule.parse_all(file_stream)
 
     except FileNotFoundError:
@@ -582,7 +583,7 @@ def update_submodules_desc_file (
     read = True
 
     try:
-        with open(repository_path + "/.gitsubmodules", 'r') as file_stream:
+        with open(repository_path + os.sep + ".gitsubmodules", 'r') as file_stream:
             for line in file_stream:
                 if (read):
                     config_lines.append(line.rstrip())
@@ -629,7 +630,8 @@ def update_submodules_desc_file (
         print(
             "No \""
             + repository_path
-            + "/.gitsubmodules\" file found. It will be created."
+            + os.sep
+            + ".gitsubmodules\" file found. It will be created."
         )
 
     for submodule_path in dict_of_submodules:
@@ -680,7 +682,7 @@ def update_submodules_desc_file (
             )
             write_index = write_index + 1
 
-    with open(repository_path + "/.gitsubmodules", 'w') as file_stream:
+    with open(repository_path + os.sep + ".gitsubmodules", 'w') as file_stream:
         for line in config_lines:
             print(line, file = file_stream)
 
