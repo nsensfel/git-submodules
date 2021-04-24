@@ -866,7 +866,7 @@ def apply_foreach_to(
     for submodule_path in submodule_dictionary:
         submodule = submodule_dictionary[submodule_path]
 
-        if (is_enabled_only and (not submodule.get_is_enabled)):
+        if (is_enabled_only and (not submodule.get_is_enabled())):
             continue
 
         penv = get_environment_variables()
