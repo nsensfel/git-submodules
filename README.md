@@ -28,21 +28,24 @@ submodules `PATH0`, `PATH1`, and so on...
    already present.
 * `status` Prints information about any mismatch between the submodules'
    description and their clone within the working tree.
-* `update-desc` Updates `.gitsubmodules` so that each submodule's description
+* `update-description`|`up-desc` Updates `.gitsubmodules` so that each submodule's description
    matches its clone within the working tree. Their paths are added to
    `.gitignore` if not already present.
-* `update-dir` Updates or creates a clone of each submodule in the working tree,
+* `update-directory`|`up-dir` Updates or creates a clone of each submodule in the working tree,
    according to their description in `.gitsubmodules`. This is done recursively.
    Official Git Submodules are also loaded in each of these clones. Paths to
    the submodule clones are added to `.gitignore` if not already present.
 
 **More advanced commands:**
 Available commands:
-* `rm-dir` Removes the local clone of the submodule (keeps the description).
-* `rm-desc` Removes the description of the submodule (keeps the local clone).
-* `rm` Removes both the local clone and the description of the submodule.
-* `from-official` Add Official Git Submodules to the description
-   (and to `.gitignore`)
+* `remove-directory`|`rm-dir` Removes the local clone of the submodule (keeps
+  the description).
+* `remove-description`|`rm-desc` Removes the description of the submodule
+  (keeps the local clone).
+* `remove`|`rm` Removes both the local clone and the description of the
+  submodule.
+* `from-official` Add Official Git Submodules to the description (and to
+  `.gitignore`)
 * `seek` Lists sub-repositories that could be added as submodules.
 
 ## Example of .gitsubmodules

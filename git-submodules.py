@@ -7,56 +7,69 @@ import re
 import subprocess
 import fileinput
 import sys
+import itertools
 
 ################################################################################
 ##### ARGUMENTS HANDLING #######################################################
 ################################################################################
+# This generates all combinations of all aliases for a particular commmand.
+# e.g. [['rm', 'remove'], ['dir', 'directory']] will produce all permutations
+# all four combinations:
+# ['rm-dir', 'dir-rm', 'rm-directory', 'directory-rm', 'remove-dir',
+# 'dir-remove', 'remove-directory', 'directory-remove']
+def generate_variants (list_of_variant_list):
+    in_order_variants = [
+        list(v) for v in itertools.product(*list_of_variant_list)
+    ]
+
+    result = []
+
+    for variant in in_order_variants:
+        result.extend(
+            ['-'.join(list(v)) for v in itertools.permutations(variant)]
+        )
+
+    return result
+
+# This makes it so that user don't have to remember much about the commands, as
+# whatever they think is the right command is likely an accepted variant of it.
+
+rm_variants = ['rm', 'remove']
+desc_variants = ['desc', 'description']
+dir_variants = [
+    'dir',
+    'dirs',
+    'directory',
+    'directories',
+    'repo',
+    'repos',
+    'repository',
+    'repositories',
+    'folder',
+    'folders'
+]
+up_variants = ['up', 'update']
+for_variants = ['for', 'foreach', 'for-all']
+rec_variants = ['rec', 'recursive']
+ena_variants = ['ena', 'enabled']
+
 aliases = dict()
 aliases['add'] = ["add"]
 aliases['seek'] = ["seek", "suggest"]
 aliases['status'] = ["status", "info"]
 aliases['from-official'] = ["from-official"]
-aliases['rm'] = ["rm", "remove"]
-aliases['rm-desc'] = [
-    "rm-desc",
-    "rm-description",
-    "desc-rm",
-    "description-rm",
-    "remove-desc",
-    "remove-description",
-    "desc-remove",
-    "description-remove"
-]
-aliases['rm-dir'] = [
-    "rm-dir",
-    "rm-directory",
-    "dir-rm",
-    "directory-rm",
-    "remove-dir",
-    "remove-directory",
-    "dir-remove",
-    "directory-remove"
-]
-aliases['up-desc'] = [
-    "up-desc",
-    "up-description",
-    "desc-up",
-    "description-up",
-    "update-desc",
-    "update-description",
-    "desc-update",
-    "description-update"
-]
-aliases['up-dir'] = [
-    "up-dir",
-    "up-directory",
-    "dir-up",
-    "directory-up",
-    "update-dir",
-    "update-directory",
-    "dir-update",
-    "directory-update"
-]
+aliases['to-official'] = ["to-official"]
+aliases['rm'] = rm_variants
+aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
+aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
+aliases['up-desc'] = generate_variants([up_variants, desc_variants])
+aliases['up-dir'] = generate_variants([up_variants, dir_variants])
+aliases['foreach'] = for_variants
+aliases['foreach-recursive'] = generate_variants([for_variants, rec_variants])
+aliases['foreach-enabled'] = generate_variants([for_variants, ena_variants])
+aliases['foreach-enabled-recursive'] = (
+    generate_variants([for_variants, ena_variants, rec_variants])
+)
 
 args_parser = argparse.ArgumentParser(
     description = ("Git submodules, but useable.")
@@ -66,7 +79,7 @@ args_parser.add_argument(
     'cmd',
     type = str,
     nargs = 1,
-    help = 'Command to be performed (add|seek|status|from-official|rm|rm-desc|rm-dir|update-desc|update-dir)'
+    help = 'Command to be performed (see README.md)'
 )
 
 args_parser.add_argument(
@@ -123,6 +136,9 @@ def get_path_of_direct_subdirectories (path, filter_out_list):
     result = set(next(os.walk(path))[1])
     result = result.difference(set(filter_out_list))
     return [path + os.sep + directory for directory in result]
+
+def get_environment_variables ():
+    return dict(os.environ)
 
 ################################################################################
 ##### GIT COMMANDS #############################################################
@@ -265,6 +281,9 @@ class GitSubmodule:
         self.sources = []
         self.commit = None
         self.enabled = True
+        self.target = None
+        self.target_type = "commit"
+        self.target_overrides_commit = False
 
     def get_path (self):
         return self.path
@@ -274,6 +293,15 @@ class GitSubmodule:
 
     def get_commit (self):
         return self.commit
+
+    def get_target (self):
+        return self.target
+
+    def get_target_type (self):
+        return self.target_type
+
+    def get_target_overrides_commit (self):
+        return self.target_overrides_commit
 
     def get_is_enabled (self):
         return self.enabled
@@ -295,8 +323,41 @@ class GitSubmodule:
             print('   source = ' + source, file = file_stream)
 
         print('   commit = ' + self.get_commit(), file = file_stream)
-
         print('   enable = ' + str(self.get_is_enabled()), file = file_stream)
+
+        if (
+            (self.get_target_type() != "commit")
+            and (self.get_target() != None)
+        ):
+            print(
+                '   target = '
+                + self.get_target_type()
+                + ' '
+                + self.get_target(),
+                file = file_stream
+            )
+            print(
+                '   target_overrides_commit = '
+                + str(self.get_target_overrides_commit()),
+                file = file_stream
+            )
+
+
+    def add_environment_variables (self, env_vars):
+        env_vars['SNSM_COMMIT'] = self.get_commit()
+        env_vars['SNSM_ENABLED'] = "1" if self.get_is_enabled() else "0"
+        env_vars['SNSM_SOURCES'] = "\n".join(self.get_sources())
+        env_vars['SNSM_TARGET_TYPE'] = self.get_target_type()
+        env_vars['SNSM_TARGET'] = self.get_target()
+        env_vars['SNSM_TARGET_OVERRIDES_COMMIT'] = (
+            "1" if self.get_target_overrides_commit() else "0"
+        )
+
+        if (env_vars['SNSM_COMMIT'] is None):
+            env_vars['SNSM_COMMIT'] = ''
+
+        if (self.get_target() is None):
+            env_vars['SNSM_TARGET'] = env_vars['SNSM_COMMIT']
 
     def clone_repository (self, root_dir):
         repository_dir = root_dir + os.sep + self.get_path()
@@ -794,6 +855,52 @@ def list_all_non_submodule_subrepositories (
                 get_path_of_direct_subdirectories(candidate, [".git"])
             )
 
+def apply_foreach_to(
+    submodule_dictionary,
+    is_recursive,
+    is_enabled_only,
+    traversed_submodules,
+    command,
+    root_directory
+):
+    for submodule_path in submodule_dictionary:
+        submodule = submodule_dictionary[submodule_path]
+
+        if (is_enabled_only and (not submodule.get_is_enabled)):
+            continue
+
+        penv = get_environment_variables()
+        penv['SNSM_ROOT'] = root_directory
+        penv['SNSM_PATH'] = traversed_submodules[-1] + os.sep + submodule_path
+        penv['SNSM_PARENT'] = traversed_submodules[-1]
+        penv['SNSM_PARENTS'] = '\n'.join(traversed_submodules)
+
+        submodule.add_environment_variables(penv)
+
+        subprocess.Popen(
+            [command],
+            cwd = penv['SNSM_PARENT'],
+            shell = True,
+            env = penv
+        ).wait()
+
+        if (is_recursive):
+            (ignored_list, submodules_own_submodules) = get_submodules_of(
+                penv['SNSM_PATH']
+            )
+
+            next_traversed_submodules = traversed_submodules.copy()
+            next_traversed_submodules.append(penv['SNSM_PATH'])
+
+            apply_foreach_to(
+                submodules_own_submodules,
+                True,
+                is_enabled_only,
+                next_traversed_submodules,
+                command,
+                root_directory
+            )
+
 ################################################################################
 ##### MAIN #####################################################################
 ################################################################################
@@ -824,6 +931,26 @@ if (args.cmd[0] in aliases['seek']):
     )
 
     sys.exit(0)
+
+foreach_command = None
+
+if (
+    (args.cmd[0] in aliases['foreach'])
+    or (args.cmd[0] in aliases['foreach-recursive'])
+    or (args.cmd[0] in aliases['foreach-enabled'])
+    or (args.cmd[0] in aliases['foreach-enabled-recursive'])
+):
+    if (len(args.paths) == 0):
+        print(
+            "[F] "
+            + args.cmd[0]
+            + " requires at least one more parameter.",
+            file = sys.stderr
+        )
+
+        sys.exit(-1)
+
+    foreach_command = args.paths.pop()
 
 args.paths = [
     resolve_relative_path(
@@ -884,7 +1011,27 @@ if (submodule_list == []):
 
 submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
 
-if (args.cmd[0] in aliases['up-dir']):
+if (foreach_command is not None):
+    is_recursive = False
+    is_enabled_only = False
+
+    if (args.cmd[0] in aliases['foreach-recursive']):
+        is_recursive = True
+    elif (args.cmd[0] in aliases['foreach-enabled']):
+        is_enabled_only = True
+    elif (args.cmd[0] in aliases['foreach-enabled-recursive']):
+        is_enabled_only = True
+        is_recursive = True
+
+    apply_foreach_to(
+        submodule_dictionary,
+        is_recursive,
+        is_enabled_only,
+        [root_directory], # = traversed_submodules
+        foreach_command,
+        root_directory
+    )
+elif (args.cmd[0] in aliases['up-dir']):
     apply_clone_to(submodule_dictionary, root_directory)
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
