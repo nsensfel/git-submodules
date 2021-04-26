@@ -167,6 +167,32 @@ def git_get_current_commit_hash (repo_path):
 
     return ""
 
+def git_get_remote_commit_hash_for (local_repo_path, remote_repo_url, target):
+    git_cmd = subprocess.Popen(
+        ['git', 'ls-remote', remote_repo_url, target],
+        cwd = local_repo_path,
+        stdout = subprocess.PIPE
+    )
+
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        search = re.findall(r'([a-z0-9]+)', line)
+
+        if (search):
+            return search[0]
+
+    print(
+        "[W] Unable to get remote commit hash for \""
+        + target
+        + "\" in remote \""
+        + remote_repo_url
+        + "\" (submodule \""
+        + local_repo_path
+        + "\").",
+        file = sys.stderr
+    )
+
+    return ""
+
 def git_repository_has_uncommitted_changes (repo_path):
     git_cmd = subprocess.Popen(
         ['git', 'update-index', '--refresh'],
@@ -322,6 +348,9 @@ class GitSubmodule:
     def set_target (self, target):
         self.target = target
 
+    def set_target_overrides_commit (self, target_overrides_commit):
+        self.target_overrides_commit = target_overrides_commit
+
     def print_to (self, file_stream):
         print('[submodule "' + self.get_path() + '"]', file = file_stream)
 
@@ -369,6 +398,17 @@ class GitSubmodule:
         repository_dir = root_dir + os.sep + self.get_path()
         ensure_directory_exists(repository_dir)
 
+        should_merge = True
+
+        if (self.get_target_overrides_commit()):
+            target = self.get_target()
+        else:
+            target = self.get_commit()
+            should_merge = False
+
+        if (self.get_target_type() != "branch"):
+            should_merge = False
+
         if (git_is_repository_root(repository_dir)):
             git_process = subprocess.Popen(
                 ['git', 'fetch', '--all'],
@@ -376,7 +416,7 @@ class GitSubmodule:
             )
 
             git_process = subprocess.Popen(
-                ['git', 'checkout', self.commit],
+                ['git', 'checkout', target],
                 cwd = repository_dir
             )
 
@@ -384,6 +424,12 @@ class GitSubmodule:
 
             if (git_process.returncode == 0):
                 print("Submodule \"" + self.get_path() + "\" checked out.")
+                if (should_merge):
+                    print("Merging any new commits into the local branch...")
+                    subprocess.Popen(
+                        ['git', 'merge'],
+                        cwd = repository_dir
+                    )
                 return
             else:
                 print(
@@ -422,20 +468,26 @@ class GitSubmodule:
                 continue
 
             git_process = subprocess.Popen(
-                ['git', 'checkout', self.commit],
+                ['git', 'checkout', target],
                 cwd = repository_dir
             )
 
             git_process.wait()
 
             if (git_process.returncode == 0):
+                if (should_merge):
+                    print("Merging any new commits into the local branch...")
+                    subprocess.Popen(
+                        ['git', 'merge'],
+                        cwd = repository_dir
+                    )
                 print("Done.")
 
                 return
             else:
                 print(
-                    "Failed at Git checkout for commit \""
-                    + self.get_commit()
+                    "Failed at Git checkout \""
+                    + target
                     + "\" from source \""
                     + source
                     + "\"."
@@ -535,12 +587,30 @@ class GitSubmodule:
             )
 
         if (self.get_target() != None):
+            for source in self.get_sources():
+                remote_hash = git_get_remote_commit_hash_for(
+                    repository_dir,
+                    source,
+                    self.get_target()
+                )
+
+                if (remote_hash != currently_used_hash):
+                    print(
+                        "In submodule \""
+                        + self.get_path()
+                        + "\", the local \""
+                        + self.get_target()
+                        + "\" "
+                        + self.get_target_type()
+                        + " does not point to the same commit as on source \""
+                        + source
+                        + "\""
+                    )
             # Use ls-remote to see if target matches used_hash.
             # Do so on every source.
-            for source in self.get_sources():
+            #for source in self.get_sources():
                 # git ls-remote source self.get_target()
                 # Beware of invalid URLs.
-
 
         for source in git_get_all_remotes(repository_dir):
             if (source not in self.get_sources()):
@@ -617,8 +687,6 @@ class GitSubmodule:
                 if (target[0] != "commit"):
                     submodule.set_target(target[1])
 
-                print(search[0])
-
                 continue
 
             search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
@@ -679,6 +747,8 @@ def update_submodules_desc_file (
     last_submodule_line_of = dict()
     last_commit_line_of = dict()
     last_enable_line_of = dict()
+    last_target_line_of = dict()
+    last_target_overrides_commit_line_of = dict()
     missing_sources = dict()
 
     for submodule in dict_of_submodules:
@@ -729,6 +799,25 @@ def update_submodules_desc_file (
                 if (search):
                     last_commit_line_of[submodule_path] = len(config_lines) - 1
                     continue
+
+                search = re.findall(r'^\s*target\s*=\s*(commit|(?:branch\s+[^\s]+)|(?:tag\s+[^\s]+))\s*', line)
+
+                if search:
+                    last_target_line_of[submodule_path] = len(config_lines) - 1
+                    continue
+
+                search = re.findall(
+                    r'^\s*target_overrides_commit\s*=\s*([^\s].*[^\s])\s*',
+                    line
+                )
+
+                if search:
+                    last_target_overrides_commit_line[submodule_path] = (
+                        len(config_lines) - 1
+                    )
+                    continue
+
+                submodule.set_target_type(target[0])
 
                 search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
 
@@ -784,6 +873,42 @@ def update_submodules_desc_file (
         config_lines[last_enable_line] = (
             "   enable = " + str(submodule.get_is_enabled())
         )
+
+        last_target_overrides_commit_line = (
+            last_target_overrides_commit_line_of[submodule_path]
+        )
+        if (last_target_overrides_commit_line == -1):
+            config_lines.insert(
+                write_index + 1,
+                "   target_overrides_commit = "
+                + str(submodule.get_target_overrides_commit())
+            )
+            write_index = write_index + 1
+            last_target_overrides_commit_line = write_index
+
+        config_lines[last_target_overrides_commit_line] = (
+            "   target_overrides_commit = "
+            + str(submodule.get_target_overrides_commit())
+        )
+
+        last_target_line = last_target_line_of[submodule_path]
+
+        if (submodule.get_target_type() == "commit"):
+            target_line = "   target = commit"
+        else:
+            target_line = (
+                "   target = "
+                + submodule.get_target_type()
+                + " "
+                + submodule.get_target()
+            )
+
+        if (last_target_line == -1):
+            config_lines.insert(write_index + 1, target_line)
+            write_index = write_index + 1
+            last_target_line = write_index
+
+        config_lines[last_target_line] = target_line
 
         for source in missing_sources[submodule_path]:
             config_lines.insert(
