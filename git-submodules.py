@@ -316,31 +316,37 @@ class GitSubmodule:
     def set_commit (self, commit):
         self.commit = commit
 
+    def set_target_type (self, target_type):
+        self.target_type = target_type
+
+    def set_target (self, target):
+        self.target = target
+
     def print_to (self, file_stream):
         print('[submodule "' + self.get_path() + '"]', file = file_stream)
 
         for source in self.get_sources():
             print('   source = ' + source, file = file_stream)
 
-        print('   commit = ' + self.get_commit(), file = file_stream)
+        print('   commit = ' + str(self.get_commit()), file = file_stream)
         print('   enable = ' + str(self.get_is_enabled()), file = file_stream)
 
-        if (
-            (self.get_target_type() != "commit")
-            and (self.get_target() != None)
-        ):
+        if (target_type == "commit"):
+            print( '   target = commit', file = file_stream)
+        else:
             print(
                 '   target = '
                 + self.get_target_type()
                 + ' '
-                + self.get_target(),
+                + str(self.get_target()),
                 file = file_stream
             )
-            print(
-                '   target_overrides_commit = '
-                + str(self.get_target_overrides_commit()),
-                file = file_stream
-            )
+
+        print(
+            '   target_overrides_commit = '
+            + str(self.get_target_overrides_commit()),
+            file = file_stream
+        )
 
 
     def add_environment_variables (self, env_vars):
@@ -528,6 +534,14 @@ class GitSubmodule:
                 + "\"."
             )
 
+        if (self.get_target() != None):
+            # Use ls-remote to see if target matches used_hash.
+            # Do so on every source.
+            for source in self.get_sources():
+                # git ls-remote source self.get_target()
+                # Beware of invalid URLs.
+
+
         for source in git_get_all_remotes(repository_dir):
             if (source not in self.get_sources()):
                 is_the_same = False
@@ -593,6 +607,20 @@ class GitSubmodule:
 
                 continue
 
+            search = re.findall(r'^\s*target\s*=\s*(commit|(?:branch\s+[^\s]+)|(?:tag\s+[^\s]+))\s*', line)
+
+            if search:
+                target = search[0].split()
+
+                submodule.set_target_type(target[0])
+
+                if (target[0] != "commit"):
+                    submodule.set_target(target[1])
+
+                print(search[0])
+
+                continue
+
             search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
 
             if search:
@@ -607,6 +635,25 @@ class GitSubmodule:
                     )
                 ):
                     submodule.disable()
+
+                continue
+
+            search = re.findall(
+                r'^\s*target_overrides_commit\s*=\s*([^\s].*[^\s])\s*',
+                line
+            )
+
+            if search:
+                enable_param_val = search[0].lower()
+
+                if (
+                    (enable_param_val == "true")
+                    or (enable_param_val == "t")
+                    or (enable_param_val == "yes")
+                    or (enable_param_val == "y")
+                    or (enable_param_val == "1")
+                ):
+                    submodule.set_target_overrides_commit(True)
 
                 continue
 
@@ -637,6 +684,8 @@ def update_submodules_desc_file (
     for submodule in dict_of_submodules:
         last_submodule_line_of[submodule] = -1
         last_commit_line_of[submodule] = -1
+        last_target_line_of[submodule] = -1
+        last_target_overrides_commit_line_of[submodule] = -1
         last_enable_line_of[submodule] = -1
         missing_sources[submodule] = dict_of_submodules[submodule].get_sources()
 
