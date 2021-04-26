@@ -247,7 +247,7 @@ def git_get_all_remotes (repo_path):
     for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
         remote_names.append(line.strip())
 
-    result = []
+    result = dict()
 
     for remote_name in remote_names:
         git_cmd = subprocess.Popen(
@@ -257,9 +257,21 @@ def git_get_all_remotes (repo_path):
         )
 
         for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
-            result.append(line.strip())
+            result[remote_name] = line.strip()
 
     return result
+
+def git_add_remote (repo_path, remote_name, remote_url):
+    subprocess.Popen(
+        ['git', 'remote', 'add', remote_name, remote_url],
+        cwd = repo_path,
+    ).wait()
+
+    subprocess.Popen(
+        ['git', 'remote', 'set-url', remote_name, remote_url],
+        cwd = repo_path,
+    ).wait()
+
 
 def git_add_to_gitignore (entry_set, root_path):
     try:
@@ -306,6 +318,7 @@ class GitSubmodule:
     def __init__ (self, path):
         self.path = path
         self.sources = []
+        self.named_sources = dict()
         self.commit = None
         self.enabled = True
         self.target = None
@@ -317,6 +330,9 @@ class GitSubmodule:
 
     def get_sources (self):
         return self.sources
+
+    def get_named_sources (self):
+        return self.named_sources
 
     def get_commit (self):
         return self.commit
@@ -343,6 +359,10 @@ class GitSubmodule:
         if (not (source in self.get_sources())):
             self.sources.append(source)
 
+    def add_named_source (self, name, source):
+        self.add_source(source)
+        self.named_sources[name] = source
+
     def set_commit (self, commit):
         self.commit = commit
 
@@ -360,6 +380,14 @@ class GitSubmodule:
 
         for source in self.get_sources():
             print('   source = ' + source, file = file_stream)
+
+        named_sources = self.get_named_sources()
+
+        for name in named_sources:
+            print(
+                '   source.' + name + ' = ' + named_sources[name],
+                file = file_stream
+            )
 
         print('   commit = ' + str(self.get_commit()), file = file_stream)
         print('   enable = ' + str(self.get_is_enabled()), file = file_stream)
@@ -434,6 +462,12 @@ class GitSubmodule:
                         ['git', 'merge'],
                         cwd = repository_dir
                     )
+
+                named_sources = self.get_named_sources()
+
+                for name in named_sources:
+                    git_add_remote(repository_dir, name, named_sources[name])
+
                 return
             else:
                 print(
@@ -486,6 +520,11 @@ class GitSubmodule:
                         cwd = repository_dir
                     )
                 print("Done.")
+
+                named_sources = self.get_named_sources()
+
+                for name in named_sources:
+                    git_add_remote(repository_dir, name, named_sources[name])
 
                 return
             else:
@@ -610,22 +649,48 @@ class GitSubmodule:
                         + source
                         + "\""
                     )
-            # Use ls-remote to see if target matches used_hash.
-            # Do so on every source.
-            #for source in self.get_sources():
-                # git ls-remote source self.get_target()
-                # Beware of invalid URLs.
 
-        for source in git_get_all_remotes(repository_dir):
-            if (source not in self.get_sources()):
+        remotes = git_get_all_remotes(repository_dir)
+
+        for remote_name in remotes:
+            if (remotes[remote_name] not in self.get_sources()):
                 is_the_same = False
 
                 print(
                     "The local clone of the submodule \""
                     + self.get_path()
                     + "\" has a source not registered in .gitsubmodules: \""
-                    + source
+                    + remotes[remote_name]
+                    + "\" (\""
+                    + remote_name
+                    + "\")."
+                )
+
+        named_sources = self.get_named_sources()
+        for source_name in named_sources:
+            if (source_name not in remotes):
+                is_the_same = False
+
+                print(
+                    "The local clone of the submodule \""
+                    + self.get_path()
+                    + "\" is missing source \""
+                    + source_name
                     + "\"."
+                )
+            elif (named_sources[source_name] != remotes[source_name]):
+                is_the_same = False
+
+                print(
+                    "The local clone of the submodule \""
+                    + self.get_path()
+                    + "\" considers source \""
+                    + source_name
+                    + "\" to be \""
+                    + remotes[source_name]
+                    + "\" instead of \""
+                    + named_sources[source_name]
+                    + "\""
                 )
 
         if (is_the_same):
@@ -671,6 +736,16 @@ class GitSubmodule:
 
             if search:
                 submodule.add_source(search[0])
+
+                continue
+
+            search = re.findall(
+                r'^\s*source\.([^\s]+)\s*=\s*([^\s].*[^\s])\s*',
+                line
+            )
+            if search:
+                (name, url) = search[0]
+                submodule.add_named_source(name, url)
 
                 continue
 
@@ -753,6 +828,7 @@ def update_submodules_desc_file (
     last_enable_line_of = dict()
     last_target_line_of = dict()
     last_target_overrides_commit_line_of = dict()
+    last_named_source_line_of = dict()
     missing_sources = dict()
 
     for submodule in dict_of_submodules:
@@ -761,6 +837,12 @@ def update_submodules_desc_file (
         last_target_line_of[submodule] = -1
         last_target_overrides_commit_line_of[submodule] = -1
         last_enable_line_of[submodule] = -1
+
+        last_named_source_line_of[submodule] = dict
+
+        for source_name in dict_of_submodules[submodule].get_named_sources():
+            last_named_source_line_of[submodule][source_name] = -1
+
         missing_sources[submodule] = dict_of_submodules[submodule].get_sources()
 
     submodule_path = None
@@ -796,6 +878,17 @@ def update_submodules_desc_file (
 
                 if (search and (submodule_path in missing_sources)):
                     missing_sources[submodule_path].remove(search[0])
+                    continue
+
+                search = re.findall(
+                    r'^\s*source.([^\s]+)\s*=\s*([^\s].*[^\s])\s*',
+                    line
+                )
+
+                if (search):
+                    last_named_source_line_of[submodule_path][search[0]] = (
+                        len(config_lines) - 1
+                    )
                     continue
 
                 search = re.findall(r'^\s*commit\s*=\s*([^\s].*[^\s])\s*', line)
@@ -858,8 +951,10 @@ def update_submodules_desc_file (
             )
             write_index = write_index + 1
             last_commit_line = write_index
-
-        config_lines[last_commit_line] = "   commit = " + submodule.get_commit()
+        else:
+            config_lines[last_commit_line] = (
+                "   commit = " + submodule.get_commit()
+            )
 
         last_enable_line = last_enable_line_of[submodule_path]
         if (last_enable_line == -1):
@@ -869,10 +964,10 @@ def update_submodules_desc_file (
             )
             write_index = write_index + 1
             last_enable_line = write_index
-
-        config_lines[last_enable_line] = (
-            "   enable = " + str(submodule.get_is_enabled())
-        )
+        else:
+            config_lines[last_enable_line] = (
+                "   enable = " + str(submodule.get_is_enabled())
+            )
 
         last_target_overrides_commit_line = (
             last_target_overrides_commit_line_of[submodule_path]
@@ -885,11 +980,11 @@ def update_submodules_desc_file (
             )
             write_index = write_index + 1
             last_target_overrides_commit_line = write_index
-
-        config_lines[last_target_overrides_commit_line] = (
-            "   target_overrides_commit = "
-            + str(submodule.get_target_overrides_commit())
-        )
+        else:
+            config_lines[last_target_overrides_commit_line] = (
+                "   target_overrides_commit = "
+                + str(submodule.get_target_overrides_commit())
+            )
 
         last_target_line = last_target_line_of[submodule_path]
 
@@ -907,8 +1002,8 @@ def update_submodules_desc_file (
             config_lines.insert(write_index + 1, target_line)
             write_index = write_index + 1
             last_target_line = write_index
-
-        config_lines[last_target_line] = target_line
+        else:
+            config_lines[last_target_line] = target_line
 
         for source in missing_sources[submodule_path]:
             config_lines.insert(
@@ -916,6 +1011,24 @@ def update_submodules_desc_file (
                 "   source = " + source
             )
             write_index = write_index + 1
+
+        named_sources = submodule.get_named_sources()
+
+        for source_name in named_sources:
+            last_index = last_named_source_line_of[submodule_path][source_name]
+            new_line = (
+                "   source." + source_name + " = " + named_sources[source_name]
+            )
+
+            if (last_index == -1):
+                config_lines.insert(
+                    write_index + 1,
+                    source_name
+                )
+                write_index = write_index + 1
+                last_target_line = write_index
+            else:
+                config_lines[last_index] = target_line
 
     with open(repository_path + os.sep + ".gitsubmodules", 'w') as file_stream:
         for line in config_lines:
