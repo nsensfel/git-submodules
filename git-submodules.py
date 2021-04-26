@@ -812,12 +812,8 @@ def update_submodules_desc_file (
                 )
 
                 if search:
-                    last_target_overrides_commit_line[submodule_path] = (
-                        len(config_lines) - 1
-                    )
+                    last_target_overrides_commit_line_of[submodule_path] = len(config_lines) - 1
                     continue
-
-                submodule.set_target_type(target[0])
 
                 search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
 
