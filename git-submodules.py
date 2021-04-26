@@ -114,7 +114,7 @@ def resolve_relative_path (repo_root_path, current_dir, file_or_dir):
     else:
         return file_or_dir
 
-    if ((len(result) > 0) and (result[0] == '/')):
+    if ((len(result) > 0) and (result[0] == os.sep)):
         result = result[1:]
 
     return result
@@ -135,6 +135,7 @@ def resolve_absolute_path (repo_root_path, current_dir, file_or_dir):
 def get_path_of_direct_subdirectories (path, filter_out_list):
     result = set(next(os.walk(path))[1])
     result = result.difference(set(filter_out_list))
+
     return [path + os.sep + directory for directory in result]
 
 def get_environment_variables ():
@@ -321,7 +322,10 @@ class GitSubmodule:
         return self.commit
 
     def get_target (self):
-        return self.target
+        if (self.get_target_type() == "commit"):
+            return self.get_commit()
+        else:
+            return self.target
 
     def get_target_type (self):
         return self.target_type
@@ -586,7 +590,7 @@ class GitSubmodule:
                 + "\"."
             )
 
-        if (self.get_target() != None):
+        if (self.get_target_type() != "commit"):
             for source in self.get_sources():
                 remote_hash = git_get_remote_commit_hash_for(
                     repository_dir,
