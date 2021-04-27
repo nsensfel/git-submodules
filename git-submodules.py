@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 import io
 import os
 import re
@@ -55,6 +54,7 @@ ena_variants = ['ena', 'enabled']
 
 aliases = dict()
 aliases['add'] = ["add"]
+aliases['help'] = ["help", "-h", "--help"]
 aliases['seek'] = ["seek", "suggest"]
 aliases['status'] = ["status", "info"]
 aliases['from-official'] = ["from-official"]
@@ -70,27 +70,6 @@ aliases['foreach-enabled'] = generate_variants([for_variants, ena_variants])
 aliases['foreach-enabled-recursive'] = (
     generate_variants([for_variants, ena_variants, rec_variants])
 )
-
-args_parser = argparse.ArgumentParser(
-    description = ("Git submodules, but useable.")
-)
-
-args_parser.add_argument(
-    'cmd',
-    type = str,
-    nargs = 1,
-    help = 'Command to be performed (see README.md)'
-)
-
-args_parser.add_argument(
-    'paths',
-    nargs = '*',
-    help = (
-        "Folders/Submodules to target (default: all)."
-    )
-)
-
-args = args_parser.parse_args()
 
 ################################################################################
 ##### OS COMMANDS ##############################################################
@@ -434,6 +413,14 @@ class GitSubmodule:
         env_vars['SNSM_COMMIT'] = self.get_commit()
         env_vars['SNSM_ENABLED'] = "1" if self.get_is_enabled() else "0"
         env_vars['SNSM_SOURCES'] = "\n".join(self.get_sources())
+        env_vars['SNSM_NAMED_SOURCES'] = (
+            "\n".join(
+                [
+                    name + " " + source
+                    for (name, source) in self.get_named_sources()
+                ]
+            )
+        )
         env_vars['SNSM_TARGET_TYPE'] = self.get_target_type()
         env_vars['SNSM_TARGET'] = self.get_target()
         env_vars['SNSM_TARGET_OVERRIDES_COMMIT'] = (
@@ -1197,9 +1184,9 @@ def apply_check_to (submodule_dictionary, root_path):
 
         submodule_dictionary[submodule_path].check_description(root_path)
 
-def apply_update_desc_to (submodules_dictionary, root_path):
+def apply_update_desc_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
-        if (not submodule_dictionary[submodule_path].get_is_enabled()):
+        if (not submodules_dictionary[submodule_path].get_is_enabled()):
             print("Skipping disabled submodule \"" + submodule_path + "\".")
             continue
 
@@ -1247,7 +1234,10 @@ def apply_foreach_to(
 
         penv = get_environment_variables()
         penv['SNSM_ROOT'] = root_directory
-        penv['SNSM_PATH'] = traversed_submodules[-1] + os.sep + submodule_path
+        penv['SNSM_ABSOLUTE_PATH'] = (
+            traversed_submodules[-1] + os.sep + submodule_path
+        )
+        penv['SNSM_PATH'] = submodule_path
         penv['SNSM_PARENT'] = traversed_submodules[-1]
         penv['SNSM_PARENTS'] = '\n'.join(traversed_submodules)
 
@@ -1278,12 +1268,506 @@ def apply_foreach_to(
             )
 
 ################################################################################
+##### HELP #####################################################################
+################################################################################
+def handle_generic_help (invocation):
+    print("nsensfel's git-submodules (name TBD)")
+    print("Simpler alternative to Git Submodule.")
+    print("https://github.com/nsensfel/git-submodules")
+    print("License Apache (see LICENCE).")
+    print("")
+    print("Usage: " + invocation + " COMMAND PARAM0 PARAM1...")
+    print("")
+    print(
+        "The important commands are \"add\", \"status\","
+        " \"update-description\", and \"update-directory\"."
+    )
+    print("")
+    print("################")
+    print("COMMAND add")
+    print(
+        "PARAMETERS list of local paths to Git repositories. No effect if no"
+        " path is given."
+    )
+    print(
+        "EFFECT updates the description file to include each path so that it"
+        " matches their current state."
+    )
+    print("")
+    print("################")
+    print("COMMAND foreach")
+    print(
+        "PARAMETERS list of local paths to Git repositories and a shell"
+        " command to execute as last parameter. All entries from the"
+        " description file if no path is given."
+    )
+    print(
+        "EFFECT executes the shell command for each submodule. See"
+        " 'help foreach' for more details."
+    )
+    print("")
+    print("################")
+    print("COMMAND foreach-enabled")
+    print(
+        "PARAMETERS list of local paths to Git repositories and a shell"
+        " command to execute as last parameter. All entries from the"
+        " description file if no path is given."
+    )
+    print(
+        "EFFECT executes the shell command for each submodule, provided they"
+        " are enabled. See 'help foreach' for more details."
+    )
+    print("")
+    print("################")
+    print("COMMAND foreach-enabled-recursive")
+    print(
+        "PARAMETERS list of local paths to Git repositories and a shell"
+        " command to execute as last parameter. All entries from the"
+        " description file if no path is given."
+    )
+    print(
+        "EFFECT executes the shell command for each submodule, provided they"
+        " are enabled. The execution recurses into each such submodule. See"
+        " 'help foreach' for more details."
+    )
+    print("")
+    print("################")
+    print("COMMAND foreach-recursive")
+    print(
+        "PARAMETERS list of local paths to Git repositories and a shell"
+        " command to execute as last parameter. All entries from the"
+        " descriptionfile if no path is given."
+    )
+    print(
+        "EFFECT executes the shell command for each submodule. The execution"
+        " recurses into each submodule. See 'help foreach' for more details."
+    )
+    print("")
+    print("################")
+    print("COMMAND from-official")
+    print(
+        "PARAMETERS list of local paths to official Git Submodules. All"
+        " official Git Submdule are selected if no path is given."
+    )
+    print(
+        "EFFECT updates the description to include the selected official Git"
+        " Submodules. These must have been initialized."
+    )
+    print("")
+    print("################")
+    print("COMMAND help")
+    print("PARAMETERS one COMMAND.")
+    print("EFFECT provides detailed help about a command.")
+    print("")
+    print("################")
+    print("COMMAND remove")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print(
+        "EFFECT removes these submodules from the description and removes their"
+        " local copy."
+    )
+    print("")
+    print("################")
+    print("COMMAND remove-description")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print("EFFECT removes these submodules from the description.")
+    print("")
+    print("################")
+    print("COMMAND remove-directory")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print("EFFECT removes the local copy of these submodules.")
+    print("")
+    print("################")
+    print("COMMAND seek")
+    print(
+        "PARAMETERS list of paths. The repository's root is used if no path is"
+        " given."
+    )
+    print("EFFECT lists subfolders eligible to become submodules.")
+    print("")
+    print("################")
+    print("COMMAND status")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print("EFFECT compares description and local copy of the submodules.")
+    print("")
+    print("################")
+    print("COMMAND to-official")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print("EFFECT Not available.")
+    print("")
+    print("################")
+    print("COMMAND update-description")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print(
+        "EFFECT updates the description file to match the submodules' local"
+        " copies."
+    )
+    print("")
+    print("################")
+    print("COMMAND update-directory")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print(
+        "EFFECT updates the local copy of the submodules to match the"
+        " description file."
+    )
+
+def handle_help_command (invocation, parameters):
+    if (len(parameters) > 1):
+        print(
+            "[F] This command requires a single parameter.",
+            file = sys.stderr
+        )
+        handle_help_command(invocation, ['help'])
+        sys.exit(-1)
+    elif (len(parameters) == 0):
+        handle_generic_help(invocation)
+        return
+
+    command = parameters[0]
+
+    if (command in aliases['help']):
+        print("PARAMETERS one COMMAND.")
+        print("EFFECT Prints detailed information about a command.")
+        print("EXAMPLE 'help help' prints this.")
+        print("ALIASES " + ', '.join(aliases['help']) + ".")
+
+        return
+
+    if (command in aliases['add']):
+        print(
+            "PARAMETERS list of local paths to Git repositories. No effect if"
+            " no path is given."
+        )
+        print(
+            "EFFECT updates the description file to include each path so that"
+            " it matches their current state."
+        )
+        print(
+            "EXAMPLE 'add ./my/src/local_clone' adds a description of the"
+            " repository at ./my/src/local_clone to the description file."
+        )
+        print("ALIASES " + ', '.join(aliases['add']) + ".")
+
+        return
+
+    if (command in aliases['foreach']):
+        print(
+            "PARAMETERS list of local paths to Git repositories and a shell"
+            " command to execute as last parameter. All entries from the"
+            " description file if no path is given."
+        )
+        print(
+            "EFFECT executes the shell command for each submodule. The command"
+            " is executed from the parent repository and a number of"
+            " environment variables are declared for each execution, as"
+            " described below (according to what is in the description file):"
+        )
+        print("ENVVAR SNSM_COMMIT is the commit for this submodule.")
+        print(
+            "ENVVAR SNSM_ENABLED is 1 if the submodule is enabled, 0 otherwise."
+        )
+        print(
+            "ENVVAR SNSM_SOURCES is a newline separated list of anonymous"
+            " sources for the submodule."
+        )
+        print(
+            "ENVVAR SNSM_NAMED_SOURCES is a newline separated list of named"
+            " sources for the submodule. Each entry is first the name, a space,"
+            " then the source."
+        )
+        print(
+            "ENVVAR SNSM_TARGET_TYPE is the target type for this submodule."
+            " 'commit', 'branch', and 'tag' are all 3 possible values."
+        )
+        print(
+            "ENVVAR SNSM_TARGET is the actual target for this submodule."
+            " It is equal to SNSM_COMMIT if SNSM_TARGET_TYPE is 'commit'."
+        )
+        print(
+            "ENVVAR SNSM_TARGET_OVERRIDES_COMMIT is 1 if the submodule is"
+            " configured to use the target instead of the commit, 0 otherwise."
+        )
+        print("ENVVAR SNSM_ROOT is an absolute path to the root repository.")
+        print("ENVVAR SNSM_ABSOLUTE_PATH is an absolute path to the submodule.")
+        print(
+            "ENVVAR SNSM_PATH is a path to the submodule relative to the"
+            " direct parent repository."
+        )
+        print(
+            "ENVVAR SNSM_PARENT is an absolute path to the direct parent"
+            " repository."
+        )
+        print(
+            "ENVVAR SNSM_PARENTS is a newline separated list of absolute path"
+            " to each of the parent repositories."
+        )
+        print("EXAMPLE foreach ./my/src/local_clone \"echo $SNSM_PATH\"")
+        print("ALIASES " + ', '.join(aliases['foreach']) + ".")
+
+        return
+
+    if (command in aliases['foreach-enabled']):
+        print(
+            "PARAMETERS list of local paths to Git repositories and a shell"
+            " command to execute as last parameter. All entries from the"
+            " description file if no path is given."
+        )
+        print(
+            "EFFECT executes the shell command for each submodule, provided"
+            " they are enabled. See 'help foreach' for more details."
+        )
+        print(
+            "EXAMPLE foreach-enabled ./my/src/local_clone \"echo $SNSM_PATH\""
+        )
+        print("ALIASES " + ', '.join(aliases['foreach-enabled']) + ".")
+
+        return
+
+    if (command in aliases['foreach-enabled-recursive']):
+        print(
+            "PARAMETERS list of local paths to Git repositories and a shell"
+            " command to execute as last parameter. All entries from the"
+            " description file if no path is given."
+        )
+        print(
+            "EFFECT executes the shell command for each submodule, provided"
+            " they are enabled. The execution recurses into each such"
+            " submodule. See 'help foreach' for more details."
+        )
+        print(
+            "EXAMPLE foreach-enabled-recursive ./my/src/local_clone"
+            " \"echo $SNSM_PATH\""
+        )
+        print(
+            "ALIASES " + ', '.join(aliases['foreach-enabled-recursive']) + "."
+        )
+
+        return
+
+    if (command in aliases['foreach-recursive']):
+        print(
+            "PARAMETERS list of local paths to Git repositories and a shell"
+            " command to execute as last parameter. All entries from the"
+            " descriptionfile if no path is given."
+        )
+        print(
+            "EFFECT executes the shell command for each submodule. The"
+            " execution recurses into each submodule. See 'help foreach' for"
+            " more details."
+        )
+        print(
+            "EXAMPLE foreach-recursive ./my/src/local_clone \"echo $SNSM_PATH\""
+        )
+        print("ALIASES " + ', '.join(aliases['foreach-recursive']) + ".")
+
+        return
+
+    if (command in aliases['from-official']):
+        # TODO
+        print("EXAMPLE from-official ./my/official/gitsubmodule")
+        print("ALIASES " + ', '.join(aliases['from-official']) + ".")
+
+        return
+
+    if (command in aliases['rm']):
+        # TODO
+        print("EXAMPLE remove ./my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['rm']) + ".")
+
+        return
+
+    if (command in aliases['rm-desc']):
+        print("EXAMPLE remove-description ./my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['rm-desc']) + ".")
+
+        return
+
+    if (command in aliases['rm-dir']):
+        print("EXAMPLE remove-description ./my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['rm-dir']) + ".")
+
+        return
+
+    if (command in aliases['seek']):
+        print("EXAMPLE seek /my/src/")
+        print("ALIASES " + ', '.join(aliases['seek']) + ".")
+
+        return
+
+    if (command in aliases['status']):
+        print("EXAMPLE status /my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['status']) + ".")
+
+        return
+
+    if (command in aliases['to-official']):
+        print("EXAMPLE to-official /my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['to-official']) + ".")
+
+        return
+
+    if (command in aliases['up-desc']):
+        print("EXAMPLE update-description /my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['up-desc']) + ".")
+
+        return
+
+    if (command in aliases['up-dir']):
+        print("EXAMPLE update-directory /my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['up-dir']) + ".")
+
+        return
+
+    print("[F] Unknown command \"" + command + "\".", file = sys.stderr)
+    handle_generic_help(invocation)
+    sys.exit(-1)
+
+################################################################################
+##### ADD ######################################################################
+################################################################################
+def handle_add_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    for path in paths:
+        if (path not in submodule_dictionary):
+            new_module = GitSubmodule(path)
+            submodule_dictionary[path] = new_module
+            submodule_list.append(new_module)
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_update_desc_to(submodule_dictionary, root_directory)
+
+    update_submodules_desc_file(root_directory, submodule_dictionary, [])
+
+    print("Updated description written.")
+
+    git_add_to_gitignore(
+        set([path for path in submodule_dictionary]),
+        root_directory
+    )
+
+################################################################################
+##### FOREACH ##################################################################
+################################################################################
+def handle_foreach_command (parameters, enabled_module_only, recursive):
+    if (len(parameters) == 0):
+        print(
+            "[F] This command requires at least one parameter.",
+            file = sys.stderr
+        )
+        handle_help_command(sys.argv[0], [sys.argv[1]])
+        sys.exit(-1)
+
+    command = parameters.pop()
+    paths = parameters
+
+
+################################################################################
 ##### MAIN #####################################################################
 ################################################################################
-current_directory = os.getcwd()
-root_directory = git_find_root_path()
+if (len(sys.argv) < 2):
+    handle_generic_help(sys.argv[0])
+    sys.exit(-1)
 
-(submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+command = sys.argv[1]
+
+if (command in aliases['help']):
+    handle_help_command(sys.argv[0], sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['add']):
+    handle_add_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['foreach']):
+    handle_foreach_command(sys.argv[2:], False, False)
+    sys.exit(0)
+
+if (command in aliases['foreach-enabled']):
+    handle_foreach_command(sys.argv[2:], True, False)
+    sys.exit(0)
+
+if (command in aliases['foreach-enabled-recursive']):
+    handle_foreach_command(sys.argv[2:], True, True)
+    sys.exit(0)
+
+if (command in aliases['foreach-recursive']):
+    handle_foreach_command(sys.argv[2:], False, True)
+    sys.exit(0)
+
+if (command in aliases['from-official']):
+    handle_from_official_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['rm']):
+    handle_remove_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['rm-desc']):
+    handle_remove_description_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['rm-dir']):
+    handle_remove_directory_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['seek']):
+    handle_seek_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['status']):
+    handle_status_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['to-official']):
+    handle_to_official_command(sys.arg[2:])
+    sys.exit(0)
+
+if (command in aliases['up-desc']):
+    handle_update_description_command(sys.arg[2:])
+    sys.exit(0)
+
+if (command in aliases['up-dir']):
+    handle_update_directory_command(sys.arg[2:])
+    sys.exit(0)
+
+print("[F] Unknown command \"" + command + "\".", file = sys.stderr)
+handle_generic_help(sys.argv[0])
+sys.exit(-1)
+
 
 if (args.cmd[0] in aliases['seek']):
     args.paths = [
@@ -1428,7 +1912,7 @@ elif (args.cmd[0] in aliases['up-desc']):
 
     update_submodules_desc_file(root_directory, submodule_dictionary, [])
 
-    print("Updated description written.")
+    print("updated description written.")
 
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
