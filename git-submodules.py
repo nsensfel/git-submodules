@@ -863,7 +863,9 @@ def update_submodules_desc_file (
                     if (submodule_path in paths_to_remove):
                         read = False
                         config_lines = config_lines[:-1]
-                    elif (not read):
+                        continue
+
+                    if (not read):
                         read = True
                         config_lines.append(line.rstrip())
 
@@ -908,7 +910,7 @@ def update_submodules_desc_file (
 
                 search = re.findall(r'^\s*target\s*=\s*(commit|(?:branch\s+[^\s]+)|(?:tag\s+[^\s]+))\s*', line)
 
-                if search:
+                if (search):
                     last_target_line_of[submodule_path] = len(config_lines) - 1
                     continue
 
@@ -917,8 +919,10 @@ def update_submodules_desc_file (
                     line
                 )
 
-                if search:
-                    last_target_overrides_commit_line_of[submodule_path] = len(config_lines) - 1
+                if (search):
+                    last_target_overrides_commit_line_of[submodule_path] = (
+                        len(config_lines) - 1
+                    )
                     continue
 
                 search = re.findall(r'^\s*enable\s*=\s*([^\s].*[^\s])\s*', line)
@@ -935,6 +939,7 @@ def update_submodules_desc_file (
             + ".gitsubmodules\" file found. It will be created."
         )
 
+    #### Existing Lines Replacement ############################################
     for submodule_path in dict_of_submodules:
         submodule = dict_of_submodules[submodule_path]
 
@@ -944,100 +949,139 @@ def update_submodules_desc_file (
                 + submodule_path
                 + "\" as it had no designed commit target."
             )
+            continue
 
+        if (last_submodule_line_of[submodule_path] == -1):
+            continue
+
+        if (last_commit_line_of[submodule_path] != -1):
+            config_lines[last_commit_line_of[submodule_path]] = (
+                "   commit = " + submodule.get_commit()
+            )
+
+        if (last_enable_line_of[submodule_path] != -1):
+            config_lines[last_enable_line_of[submodule_path]] = (
+                "   enable = " + str(submodule.get_is_enabled())
+            )
+
+        if (last_target_overrides_commit_line_of[submodule_path] != -1):
+            config_lines[
+                last_target_overrides_commit_line_of[submodule_path]
+            ] = (
+                "   target_overrides_commit = "
+                + str(submodule.get_target_overrides_commit())
+            )
+
+        if (last_target_line_of[submodule_path] != -1):
+            if (submodule.get_target_type() == "commit"):
+                target_line = "   target = commit"
+            else:
+                target_line = (
+                    "   target = "
+                    + submodule.get_target_type()
+                    + " "
+                    + submodule.get_target()
+                )
+
+            config_lines[last_target_line_of[submodule_path]] = target_line
+
+        named_sources = submodule.get_named_sources()
+        for source_name in named_sources:
+            if (last_named_source_line_of[submodule_path][source_name] != -1):
+                config_lines[
+                    last_named_source_line_of[submodule_path][source_name]
+                ] = (
+                    "   source."
+                    + source_name
+                    + " = "
+                    + named_sources[source_name]
+                )
+
+    #### Lines Addition ########################################################
+    for submodule_path in dict_of_submodules:
+        submodule = dict_of_submodules[submodule_path]
+
+        if (submodule.get_commit() == None):
+            # Info about this submodule being skipped was already printed.
             continue
 
         write_index = last_submodule_line_of[submodule_path]
+        offset = 0
+
         if (write_index == -1):
             config_lines.append("[submodule \"" + submodule_path + "\"]")
-            write_index = len(config_lines) - 1
+            write_index = len(config_lines)
+        else:
+            write_index = write_index + 1
 
-        last_commit_line = last_commit_line_of[submodule_path]
-        if (last_commit_line == -1):
+        if (last_commit_line_of[submodule_path] == -1):
             config_lines.insert(
-                write_index + 1,
+                write_index,
                 "   commit = " + submodule.get_commit()
             )
-            write_index = write_index + 1
-            last_commit_line = write_index
-        else:
-            config_lines[last_commit_line] = (
-                "   commit = " + submodule.get_commit()
-            )
+            offset = offset + 1
 
-        last_enable_line = last_enable_line_of[submodule_path]
-        if (last_enable_line == -1):
+        if (last_enable_line_of[submodule_path]  == -1):
             config_lines.insert(
-                write_index + 1,
+                write_index,
                 "   enable = " + str(submodule.get_is_enabled())
             )
-            write_index = write_index + 1
-            last_enable_line = write_index
-        else:
-            config_lines[last_enable_line] = (
-                "   enable = " + str(submodule.get_is_enabled())
-            )
+            offset = offset + 1
 
-        last_target_overrides_commit_line = (
-            last_target_overrides_commit_line_of[submodule_path]
-        )
-        if (last_target_overrides_commit_line == -1):
+
+        if (last_target_overrides_commit_line_of[submodule_path] == -1):
             config_lines.insert(
-                write_index + 1,
+                write_index,
                 "   target_overrides_commit = "
                 + str(submodule.get_target_overrides_commit())
             )
-            write_index = write_index + 1
-            last_target_overrides_commit_line = write_index
-        else:
-            config_lines[last_target_overrides_commit_line] = (
-                "   target_overrides_commit = "
-                + str(submodule.get_target_overrides_commit())
-            )
+            offset = offset + 1
 
-        last_target_line = last_target_line_of[submodule_path]
+        if (last_target_line_of[submodule_path] == -1):
+            if (submodule.get_target_type() == "commit"):
+                target_line = "   target = commit"
+            else:
+                target_line = (
+                    "   target = "
+                    + submodule.get_target_type()
+                    + " "
+                    + submodule.get_target()
+                )
+            config_lines.insert(write_index, target_line)
+            offset = offset + 1
 
-        if (submodule.get_target_type() == "commit"):
-            target_line = "   target = commit"
-        else:
-            target_line = (
-                "   target = "
-                + submodule.get_target_type()
-                + " "
-                + submodule.get_target()
-            )
-
-        if (last_target_line == -1):
-            config_lines.insert(write_index + 1, target_line)
-            write_index = write_index + 1
-            last_target_line = write_index
-        else:
-            config_lines[last_target_line] = target_line
-
-        for source in missing_sources[submodule_path]:
+        # Reverse the source order, as the additions are done in reverse.
+        for source in reversed(missing_sources[submodule_path]):
             config_lines.insert(
-                write_index + 1,
+                write_index,
                 "   source = " + source
             )
-            write_index = write_index + 1
+            offset = offset + 1
 
         named_sources = submodule.get_named_sources()
 
         for source_name in named_sources:
             last_index = last_named_source_line_of[submodule_path][source_name]
             new_line = (
-                "   source." + source_name + " = " + named_sources[source_name]
             )
 
-            if (last_index == -1):
+            if (last_named_source_line_of[submodule_path][source_name] == -1):
                 config_lines.insert(
-                    write_index + 1,
-                    new_line
+                    write_index,
+                    (
+                        "   source."
+                        + source_name
+                        + " = "
+                        + named_sources[source_name]
+                    )
                 )
-                write_index = write_index + 1
-                last_target_line = write_index
-            else:
-                config_lines[last_index] = target_line
+                offset = offset + 1
+
+        for other_submodule_path in last_submodule_line_of:
+            if (last_submodule_line_of[other_submodule_path] > write_index):
+                last_submodule_line_of[other_submodule_path] = (
+                    last_submodule_line_of[other_submodule_path] + offset
+                )
 
     with open(repository_path + os.sep + ".gitsubmodules", 'w') as file_stream:
         for line in config_lines:
