@@ -311,6 +311,27 @@ def git_is_repository_root (path):
         ).communicate()[0].rstrip().decode('utf-8') == path
     )
 
+def git_get_default_remote (repo_path):
+    result = "origin"
+
+    git_cmd = subprocess.Popen(
+        ['git', 'config', '--get', '--global', 'checkout.defaultRemote'],
+        cwd = repo_path,
+        stdout = subprocess.PIPE
+    )
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        result = line.strip()
+
+    git_cmd = subprocess.Popen(
+        ['git', 'config', '--get', 'checkout.defaultRemote'],
+        cwd = repo_path,
+        stdout = subprocess.PIPE
+    )
+    for line in io.TextIOWrapper(git_cmd.stdout, encoding="utf-8"):
+        result = line.strip()
+
+    return result
+
 ################################################################################
 ##### GIT SUBMODULE CLASS ######################################################
 ################################################################################
@@ -360,7 +381,6 @@ class GitSubmodule:
             self.sources.append(source)
 
     def add_named_source (self, name, source):
-        self.add_source(source)
         self.named_sources[name] = source
 
     def set_commit (self, commit):
@@ -590,8 +610,12 @@ class GitSubmodule:
         self.set_commit(git_get_current_commit_hash(repository_dir))
 
         remotes = git_get_all_remotes(repository_dir)
+        default_remote = git_get_default_remote(repository_dir)
         for source_name in remotes:
-            self.add_named_source(source_name, remotes[source_name])
+            if (source_name == default_remote):
+                self.add_source(remotes[source_name])
+            else:
+                self.add_named_source(source_name, remotes[source_name])
 
     def check_description (self, root_dir):
         repository_dir = root_dir + os.sep + self.get_path()
@@ -652,9 +676,23 @@ class GitSubmodule:
                     )
 
         remotes = git_get_all_remotes(repository_dir)
+        named_sources = self.get_named_sources()
+        default_remote = git_get_default_remote(repository_dir)
 
         for remote_name in remotes:
-            if (remotes[remote_name] not in self.get_sources()):
+            if (remote_name == default_remote):
+                if (remotes[remote_name] not in self.get_sources()):
+                    is_the_same = False
+
+                    print(
+                        "The local clone of the submodule \""
+                        + self.get_path()
+                        + "\" uses a default source not listed as an anonymous"
+                        + " one in .gitsubmodules: \""
+                        + remotes[remote_name]
+                        + "\"."
+                    )
+            elif (remote_name not in named_sources):
                 is_the_same = False
 
                 print(
@@ -666,8 +704,6 @@ class GitSubmodule:
                     + remote_name
                     + "\")."
                 )
-
-        named_sources = self.get_named_sources()
         for source_name in named_sources:
             if (source_name not in remotes):
                 is_the_same = False
@@ -735,7 +771,7 @@ class GitSubmodule:
 
             search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
 
-            if search:
+            if (search):
                 submodule.add_source(search[0])
 
                 continue
