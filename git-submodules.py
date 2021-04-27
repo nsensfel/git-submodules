@@ -872,17 +872,20 @@ def update_submodules_desc_file (
                     )
                     continue
 
+                if (not read):
+                    continue
+
                 if (not submodule_path):
                     continue
 
                 search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
 
-                if (
-                    search
-                    and (submodule_path in missing_sources)
-                    and search[0] in missing_sources[submodule_path]
-                ):
-                    missing_sources[submodule_path].remove(search[0])
+                if (search):
+                    if (
+                        (submodule_path in missing_sources)
+                        and search[0] in missing_sources[submodule_path]
+                    ):
+                        missing_sources[submodule_path].remove(search[0])
                     continue
 
                 search = re.findall(
@@ -891,7 +894,8 @@ def update_submodules_desc_file (
                 )
 
                 if (search):
-                    last_named_source_line_of[submodule_path][search[0]] = (
+                    (name, source) = search[0]
+                    last_named_source_line_of[submodule_path][name] = (
                         len(config_lines) - 1
                     )
                     continue
@@ -1028,7 +1032,7 @@ def update_submodules_desc_file (
             if (last_index == -1):
                 config_lines.insert(
                     write_index + 1,
-                    source_name
+                    new_line
                 )
                 write_index = write_index + 1
                 last_target_line = write_index
