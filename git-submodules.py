@@ -589,8 +589,9 @@ class GitSubmodule:
 
         self.set_commit(git_get_current_commit_hash(repository_dir))
 
-        for source in git_get_all_remotes(repository_dir):
-            self.add_source(source)
+        remotes = git_get_all_remotes(repository_dir)
+        for source_name in remotes:
+            self.add_named_source(source_name, remotes[source_name])
 
     def check_description (self, root_dir):
         repository_dir = root_dir + os.sep + self.get_path()
@@ -838,7 +839,7 @@ def update_submodules_desc_file (
         last_target_overrides_commit_line_of[submodule] = -1
         last_enable_line_of[submodule] = -1
 
-        last_named_source_line_of[submodule] = dict
+        last_named_source_line_of[submodule] = dict()
 
         for source_name in dict_of_submodules[submodule].get_named_sources():
             last_named_source_line_of[submodule][source_name] = -1
@@ -876,7 +877,11 @@ def update_submodules_desc_file (
 
                 search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
 
-                if (search and (submodule_path in missing_sources)):
+                if (
+                    search
+                    and (submodule_path in missing_sources)
+                    and search[0] in missing_sources[submodule_path]
+                ):
                     missing_sources[submodule_path].remove(search[0])
                     continue
 
