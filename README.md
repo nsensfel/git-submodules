@@ -23,77 +23,107 @@ The important commands are "add", "status", "update-description", and "update-di
 
 ---
 **COMMAND** `add`
+
 **PARAMETERS** list of local paths to Git repositories. No effect if no path is given.
+
 **EFFECT** updates the description file to include each path so that it matches their current state.
 
 ---
 **COMMAND** `foreach`
+
 **PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+
 **EFFECT** executes the shell command for each submodule. See 'help foreach' for more details.
 
 ---
 **COMMAND** `foreach-enabled`
+
 **PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+
 **EFFECT** executes the shell command for each submodule, provided they are enabled. See `help foreach` for more details.
 
 ---
 **COMMAND** `foreach-enabled-recursive`
+
 **PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+
 **EFFECT** executes the shell command for each submodule, provided they are enabled. The execution recurses into each such submodule. See `help foreach` for more details.
 
 ---
 **COMMAND** `foreach-recursive`
+
 **PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+
 **EFFECT** executes the shell command for each submodule. The execution recurses into each submodule. See `help foreach` for more details.
 
 ---
 **COMMAND** `from-official`
+
 **PARAMETERS** list of local paths to official Git Submodules. All official Git Submdule are selected if no path is given.
+
 **EFFECT** updates the description to include the selected official Git Submodules. These do not need to have been initialized.
 
 ---
 **COMMAND** `help`
+
 **PARAMETERS** one COMMAND.
+
 **EFFECT** provides detailed help about a command.
 
 ---
 **COMMAND** `remove`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** removes these submodules from the description and removes their local copy.
 
 ---
 **COMMAND** `remove-description`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** removes these submodules from the description.
 
 ---
 **COMMAND** `remove-directory`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** removes the local copy of these submodules.
 
 ---
 **COMMAND** `seek`
+
 **PARAMETERS** list of paths. The repository's root is used if no path is given.
+
 **EFFECT** lists subfolders eligible to become submodules.
 
 ---
 **COMMAND** `status`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** compares description and local copy of the submodules.
 
 ---
 **COMMAND** `to-official`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** Not available.
 
 ---
 **COMMAND** `update-description`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** updates the description file to match the submodules' local copies.
 
 ---
 **COMMAND** `update-directory`
+
 **PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
 **EFFECT** updates the local copy of the submodules to match the description file.
 
 ## Foreach environment variables
