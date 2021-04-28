@@ -70,7 +70,6 @@ aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
 aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
 aliases['up-desc'] = generate_variants([up_variants, desc_variants])
 aliases['up-dir'] = generate_variants([up_variants, dir_variants])
-aliases['foreach'] = for_variants
 aliases['foreach-recursive'] = generate_variants([for_variants, rec_variants])
 aliases['foreach-enabled'] = generate_variants([for_variants, ena_variants])
 aliases['foreach-enabled-recursive'] = (
@@ -1368,7 +1367,7 @@ def handle_generic_help (invocation):
     print(
         "PARAMETERS list of local paths to Git repositories and a shell"
         " command to execute as last parameter. All entries from the"
-        " descriptionfile if no path is given."
+        " description file if no path is given."
     )
     print(
         "EFFECT executes the shell command for each submodule. The execution"

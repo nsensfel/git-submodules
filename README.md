@@ -1,4 +1,4 @@
-# nsensfel's git-submodules
+# nsensfel's git-submodules (name TBD)
 An alternative to the official
 [Git Submodule](https://git-scm.com/docs/git-submodule) features. Same
 principles, but ridiculously much simpler to use and maintain.
@@ -17,36 +17,98 @@ Unlike Git Submodule, this tool allows you to specify alternative source URLs
 for submodules.
 
 ## How to use
-* `$ git-submodules.py COMMAND` will apply `COMMAND` to all submodules in
-`.gitsubmodules`.
-* `$ git-submodules.py COMMAND PATH0 PATH1 ...` will apply `COMMAND` to the
-submodules `PATH0`, `PATH1`, and so on...
+Usage: `git-submodules.py COMMAND PARAM0 PARAM1...`
 
-**Basic commands:**
-* `add` Modifies `.gitsubmodules` to register or update the description of the
-   selected submodules and/or paths. Said paths are added to `.gitignore` if not
-   already present.
-* `status` Prints information about any mismatch between the submodules'
-   description and their clone within the working tree.
-* `update-description`|`up-desc` Updates `.gitsubmodules` so that each submodule's description
-   matches its clone within the working tree. Their paths are added to
-   `.gitignore` if not already present.
-* `update-directory`|`up-dir` Updates or creates a clone of each submodule in the working tree,
-   according to their description in `.gitsubmodules`. This is done recursively.
-   Official Git Submodules are also loaded in each of these clones. Paths to
-   the submodule clones are added to `.gitignore` if not already present.
+The important commands are "add", "status", "update-description", and "update-directory".
 
-**More advanced commands:**
-Available commands:
-* `remove-directory`|`rm-dir` Removes the local clone of the submodule (keeps
-  the description).
-* `remove-description`|`rm-desc` Removes the description of the submodule
-  (keeps the local clone).
-* `remove`|`rm` Removes both the local clone and the description of the
-  submodule.
-* `from-official` Add Official Git Submodules to the description (and to
-  `.gitignore`)
-* `seek` Lists sub-repositories that could be added as submodules.
+---
+**COMMAND** `add`
+**PARAMETERS** list of local paths to Git repositories. No effect if no path is given.
+**EFFECT** updates the description file to include each path so that it matches their current state.
+
+---
+**COMMAND** `foreach`
+**PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+**EFFECT** executes the shell command for each submodule. See 'help foreach' for more details.
+
+---
+**COMMAND** `foreach-enabled`
+**PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+**EFFECT** executes the shell command for each submodule, provided they are enabled. See `help foreach` for more details.
+
+---
+**COMMAND** `foreach-enabled-recursive`
+**PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+**EFFECT** executes the shell command for each submodule, provided they are enabled. The execution recurses into each such submodule. See `help foreach` for more details.
+
+---
+**COMMAND** `foreach-recursive`
+**PARAMETERS** list of local paths to Git repositories and a shell command to execute as last parameter. All entries from the description file if no path is given.
+**EFFECT** executes the shell command for each submodule. The execution recurses into each submodule. See `help foreach` for more details.
+
+---
+**COMMAND** `from-official`
+**PARAMETERS** list of local paths to official Git Submodules. All official Git Submdule are selected if no path is given.
+**EFFECT** updates the description to include the selected official Git Submodules. These do not need to have been initialized.
+
+---
+**COMMAND** `help`
+**PARAMETERS** one COMMAND.
+**EFFECT** provides detailed help about a command.
+
+---
+**COMMAND** `remove`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** removes these submodules from the description and removes their local copy.
+
+---
+**COMMAND** `remove-description`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** removes these submodules from the description.
+
+---
+**COMMAND** `remove-directory`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** removes the local copy of these submodules.
+
+---
+**COMMAND** `seek`
+**PARAMETERS** list of paths. The repository's root is used if no path is given.
+**EFFECT** lists subfolders eligible to become submodules.
+
+---
+**COMMAND** `status`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** compares description and local copy of the submodules.
+
+---
+**COMMAND** `to-official`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** Not available.
+
+---
+**COMMAND** `update-description`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** updates the description file to match the submodules' local copies.
+
+---
+**COMMAND** `update-directory`
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+**EFFECT** updates the local copy of the submodules to match the description file.
+
+## Foreach environment variables
+* `SNSM_COMMIT` is the commit for this submodule.
+* `SNSM_ENABLED` is `1` if the submodule is enabled, `0` otherwise.
+* `SNSM_SOURCES` is a newline separated list of anonymous sources for the submodule.
+* `SNSM_NAMED_SOURCES` is a newline separated list of named sources for the submodule. Each entry is first the name, a space, then the source.
+* `SNSM_TARGET_TYPE` is the target type for this submodule. `commit`, `branch`, and `tag` are all 3 possible values.
+* `SNSM_TARGET` is the actual target for this submodule. It is equal to `SNSM_COMMIT` if `SNSM_TARGET_TYPE` is `commit`.
+* `SNSM_TARGET_OVERRIDES_COMMIT` is `1` if the submodule is configured to use the target instead of the commit, `0` otherwise.
+* `SNSM_ROOT` is an absolute path to the root repository.
+* `SNSM_ABSOLUTE_PATH` is an absolute path to the submodule.
+* `SNSM_PATH` is a path to the submodule relative to the direct parent repository.
+* `SNSM_PARENT` is an absolute path to the direct parent repository.
+* `SNSM_PARENTS` is a newline separated list of absolute path to each of the parent repositories.
 
 ## Example of .gitsubmodules
 ```
