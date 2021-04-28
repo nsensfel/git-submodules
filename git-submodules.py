@@ -52,6 +52,7 @@ for_variants = ['for', 'foreach', 'for-all']
 from_official_variants = ['from-official']
 help_variants = ['help', '-h', '--help']
 list_variants = ['list', 'ls']
+match_target_variants = ['match-target']
 rec_variants = ['rec', 'recursive']
 rm_variants = ['rm', 'remove', 'clear', 'del', 'delete']
 seek_variants = ['seek', 'suggest']
@@ -70,6 +71,7 @@ aliases['foreach-recursive'] = generate_variants([for_variants, rec_variants])
 aliases['from-official'] = from_official_variants
 aliases['help'] = help_variants
 aliases['list'] = list_variants
+aliases['match-target'] = match_target_variants
 aliases['rm'] = rm_variants
 aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
 aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
@@ -464,13 +466,13 @@ class GitSubmodule:
         if (self.get_target() is None):
             env_vars['SNSM_TARGET'] = env_vars['SNSM_COMMIT']
 
-    def clone_repository (self, root_dir):
+    def clone_repository (self, root_dir, force_target):
         repository_dir = root_dir + os.sep + self.get_path()
         ensure_directory_exists(repository_dir)
 
         should_merge = True
 
-        if (self.get_target_overrides_commit()):
+        if (self.get_target_overrides_commit() or force_target):
             target = self.get_target()
         else:
             target = self.get_commit()
@@ -1172,7 +1174,7 @@ def restrict_dictionary_to (dict_of_submodules, list_of_paths):
 
     return result
 
-def apply_clone_to (submodule_dictionary, root_path):
+def apply_clone_to (submodule_dictionary, force_target, root_path):
     for submodule_path in submodule_dictionary:
         if (not submodule_dictionary[submodule_path].get_is_enabled()):
             print("Skipping disabled submodule \"" + submodule_path + "\".")
@@ -1182,7 +1184,10 @@ def apply_clone_to (submodule_dictionary, root_path):
 
         print("Cloning \"" + repo_path + "\"...")
 
-        submodule_dictionary[submodule_path].clone_repository(root_path)
+        submodule_dictionary[submodule_path].clone_repository(
+            root_path,
+            force_target
+        )
 
         print(
             "Done. Handling any official Git submodules in \""
@@ -1195,7 +1200,7 @@ def apply_clone_to (submodule_dictionary, root_path):
 
         (recursive_list, recursive_dictionary) = get_submodules_of(repo_path)
 
-        apply_clone_to(recursive_dictionary, root_path)
+        apply_clone_to(recursive_dictionary, False, root_path)
 
         print ("Recursive clone in \"" + repo_path + "\" completed.")
 
@@ -1397,9 +1402,22 @@ def handle_generic_help (invocation):
     print("COMMAND list")
     print(
         "PARAMETERS list of local paths. The root repository's path is selected"
-        " if no path is given"
+        " if no path is given."
     )
     print("EFFECT lists all submodules in those directories.")
+    print("")
+    print("################")
+    print("COMMAND match-target")
+    print(
+        "PARAMETERS list of paths to submodules. All described submodules are"
+        " selected if no path is given."
+    )
+    print(
+        "EFFECT updates the submodule's local copy to match the submodule's"
+        " target (instead of its commit) regardless of the"
+        " 'target_overrides_commit' parameter, then updates the submodule's"
+        " description so that it matches the updated local copy."
+    )
     print("")
     print("################")
     print("COMMAND from-official")
@@ -1411,6 +1429,7 @@ def handle_generic_help (invocation):
         "EFFECT updates the description to include the selected official Git"
         " Submodules. These do not need to have been initialized."
     )
+    print("")
     print("################")
     print("COMMAND remove")
     print(
@@ -1652,6 +1671,26 @@ def handle_help_command (invocation, parameters):
         print("EXAMPLE list ./my")
         print("EXAMPLE list ./my my_other_folder")
         print("ALIASES " + ', '.join(aliases['list']) + ".")
+
+        return
+
+    if (command in aliases['match-target']):
+        print(
+            "PARAMETERS list of paths to submodules. All described submodules"
+            " are selected if no path is given."
+        )
+        print(
+            "EFFECT updates the submodule's local copy to match the"
+            " submodule's target (instead of its commit) regardless of the"
+            " 'target_overrides_commit' parameter, then updates the submodule's"
+            " description so that it matches the updated local copy."
+        )
+        print("EXAMPLE match-target")
+        print("EXAMPLE match-target ./*")
+        print("EXAMPLE match-target ./my/src/local_clone")
+        print("ALIASES " + ', '.join(aliases['match-target']) + ".")
+
+        return
 
     if (command in aliases['rm']):
         # TODO
@@ -1997,6 +2036,39 @@ def handle_list_command (paths):
                 print(submodule_path)
 
 ################################################################################
+##### MATCH TARGET #############################################################
+################################################################################
+def handle_match_target_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_clone_to(
+        submodule_dictionary,
+        True, # = force_target
+        root_directory
+    )
+
+    apply_update_desc_to(submodule_dictionary, root_directory)
+    update_submodules_desc_file(root_directory, submodule_dictionary, [])
+
+    git_add_to_gitignore(
+        set([path for path in submodule_dictionary]),
+        root_directory
+    )
+
+################################################################################
 ##### TO OFFICIAL ##############################################################
 ################################################################################
 def handle_to_official_command (paths):
@@ -2052,7 +2124,12 @@ def handle_update_directory_command (paths):
 
     submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
 
-    apply_clone_to(submodule_dictionary, root_directory)
+    apply_clone_to(
+        submodule_dictionary,
+        False, # = force_target,
+        root_directory
+    )
+
     git_add_to_gitignore(
         set([path for path in submodule_dictionary]),
         root_directory
@@ -2097,6 +2174,10 @@ if (command in aliases['from-official']):
 
 if (command in aliases['list']):
     handle_list_command(sys.argv[2:])
+    sys.exit(0)
+
+if (command in aliases['match-target']):
+    handle_match_target_command(sys.argv[2:])
     sys.exit(0)
 
 if (command in aliases['rm']):
