@@ -33,7 +33,7 @@ def generate_variants (list_of_variant_list):
 # This makes it so that user don't have to remember much about the commands, as
 # whatever they think is the right command is likely an accepted variant of it.
 
-rm_variants = ['rm', 'remove', 'clear', 'del', 'delete']
+add_variants = ['add']
 desc_variants = ['desc', 'description']
 dir_variants = [
     'dir',
@@ -47,34 +47,37 @@ dir_variants = [
     'folder',
     'folders'
 ]
-up_variants = ['up', 'update']
-for_variants = ['for', 'foreach', 'for-all']
-rec_variants = ['rec', 'recursive']
 ena_variants = ['ena', 'enabled']
-add_variants = ["add"]
-help_variants = ["help", "-h", "--help"]
-seek_variants = ["seek", "suggest"]
-status_variants = ["status", "info"]
-from_official_variants = ["from-official"]
-to_official_variants = ["to-official"]
+for_variants = ['for', 'foreach', 'for-all']
+from_official_variants = ['from-official']
+help_variants = ['help', '-h', '--help']
+list_variants = ['list', 'ls']
+rec_variants = ['rec', 'recursive']
+rm_variants = ['rm', 'remove', 'clear', 'del', 'delete']
+seek_variants = ['seek', 'suggest']
+status_variants = ['status', 'info']
+to_official_variants = ['to-official']
+up_variants = ['up', 'update']
 
 aliases = dict()
 aliases['add'] = add_variants
-aliases['help'] = help_variants
-aliases['seek'] = seek_variants
-aliases['status'] = status_variants
-aliases['from-official'] = from_official_variants
-aliases['to-official'] = to_official_variants
-aliases['rm'] = rm_variants
-aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
-aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
-aliases['up-desc'] = generate_variants([up_variants, desc_variants])
-aliases['up-dir'] = generate_variants([up_variants, dir_variants])
-aliases['foreach-recursive'] = generate_variants([for_variants, rec_variants])
+aliases['foreach'] = for_variants
 aliases['foreach-enabled'] = generate_variants([for_variants, ena_variants])
 aliases['foreach-enabled-recursive'] = (
     generate_variants([for_variants, ena_variants, rec_variants])
 )
+aliases['foreach-recursive'] = generate_variants([for_variants, rec_variants])
+aliases['from-official'] = from_official_variants
+aliases['help'] = help_variants
+aliases['list'] = list_variants
+aliases['rm'] = rm_variants
+aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
+aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
+aliases['seek'] = seek_variants
+aliases['status'] = status_variants
+aliases['to-official'] = to_official_variants
+aliases['up-desc'] = generate_variants([up_variants, desc_variants])
+aliases['up-dir'] = generate_variants([up_variants, dir_variants])
 
 ################################################################################
 ##### OS COMMANDS ##############################################################
@@ -1391,6 +1394,24 @@ def handle_generic_help (invocation):
     print("EFFECT provides detailed help about a command.")
     print("")
     print("################")
+    print("COMMAND list")
+    print(
+        "PARAMETERS list of local paths. The root repository's path is selected"
+        " if no path is given"
+    )
+    print("EFFECT lists all submodules in those directories.")
+    print("")
+    print("################")
+    print("COMMAND from-official")
+    print(
+        "PARAMETERS list of local paths to official Git Submodules. All"
+        " official Git Submdule are selected if no path is given."
+    )
+    print(
+        "EFFECT updates the description to include the selected official Git"
+        " Submodules. These do not need to have been initialized."
+    )
+    print("################")
     print("COMMAND remove")
     print(
         "PARAMETERS list of paths to submodules. All described submodules are"
@@ -1621,6 +1642,17 @@ def handle_help_command (invocation, parameters):
 
         return
 
+    if (command in aliases['list']):
+        print(
+            "PARAMETERS list of local paths. The root repository's path is"
+            " selected if no path is given"
+        )
+        print("EFFECT lists all submodules in those directories.")
+        print("EXAMPLE list")
+        print("EXAMPLE list ./my")
+        print("EXAMPLE list ./my my_other_folder")
+        print("ALIASES " + ', '.join(aliases['list']) + ".")
+
     if (command in aliases['rm']):
         # TODO
         print("EXAMPLE remove ./my/src/local_clone")
@@ -1629,42 +1661,49 @@ def handle_help_command (invocation, parameters):
         return
 
     if (command in aliases['rm-desc']):
+        # TODO
         print("EXAMPLE remove-description ./my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['rm-desc']) + ".")
 
         return
 
     if (command in aliases['rm-dir']):
+        # TODO
         print("EXAMPLE remove-description ./my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['rm-dir']) + ".")
 
         return
 
     if (command in aliases['seek']):
+        # TODO
         print("EXAMPLE seek /my/src/")
         print("ALIASES " + ', '.join(aliases['seek']) + ".")
 
         return
 
     if (command in aliases['status']):
+        # TODO
         print("EXAMPLE status /my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['status']) + ".")
 
         return
 
     if (command in aliases['to-official']):
+        # TODO
         print("EXAMPLE to-official /my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['to-official']) + ".")
 
         return
 
     if (command in aliases['up-desc']):
+        # TODO
         print("EXAMPLE update-description /my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['up-desc']) + ".")
 
         return
 
     if (command in aliases['up-dir']):
+        # TODO
         print("EXAMPLE update-directory /my/src/local_clone")
         print("ALIASES " + ', '.join(aliases['up-dir']) + ".")
 
@@ -1933,6 +1972,31 @@ def handle_status_command (paths):
     apply_check_to(submodule_dictionary, root_directory)
 
 ################################################################################
+##### LIST #####################################################################
+################################################################################
+def handle_list_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    if (len(paths) == 0):
+        paths = [""]
+
+    for submodule_path in submodule_dictionary:
+        for path in paths:
+            if (submodule_path.startswith(path)):
+                print(submodule_path)
+
+################################################################################
 ##### TO OFFICIAL ##############################################################
 ################################################################################
 def handle_to_official_command (paths):
@@ -2031,6 +2095,10 @@ if (command in aliases['from-official']):
     handle_from_official_command(sys.argv[2:])
     sys.exit(0)
 
+if (command in aliases['list']):
+    handle_list_command(sys.argv[2:])
+    sys.exit(0)
+
 if (command in aliases['rm']):
     handle_remove_command(sys.argv[2:])
     sys.exit(0)
@@ -2066,157 +2134,3 @@ if (command in aliases['up-dir']):
 print("[F] Unknown command \"" + command + "\".", file = sys.stderr)
 handle_generic_help(sys.argv[0])
 sys.exit(-1)
-
-
-if (args.cmd[0] in aliases['seek']):
-    args.paths = [
-        resolve_absolute_path(root_directory, current_directory, path)
-        for path in args.paths
-    ]
-    args.paths = [
-        path
-        for path in args.paths if (
-            os.path.isdir(path) and (path != root_directory)
-        )
-    ]
-
-    if (len(args.paths) == 0):
-        args.paths = get_path_of_direct_subdirectories(root_directory, [".git"])
-
-    list_all_non_submodule_subrepositories (
-        submodule_dictionary,
-        args.paths,
-        root_directory
-    )
-
-    sys.exit(0)
-
-foreach_command = None
-
-if (
-    (args.cmd[0] in aliases['foreach'])
-    or (args.cmd[0] in aliases['foreach-recursive'])
-    or (args.cmd[0] in aliases['foreach-enabled'])
-    or (args.cmd[0] in aliases['foreach-enabled-recursive'])
-):
-    if (len(args.paths) == 0):
-        print(
-            "[F] "
-            + args.cmd[0]
-            + " requires at least one more parameter.",
-            file = sys.stderr
-        )
-
-        sys.exit(-1)
-
-    foreach_command = args.paths.pop()
-
-args.paths = [
-    resolve_relative_path(
-        root_directory,
-        current_directory,
-        path.rstrip(os.sep)
-    ) for path in args.paths
-]
-
-if (args.cmd[0] in aliases['rm-desc']):
-    if (len(args.paths) == 0):
-        args.paths = [path for path in submodule_dictionary]
-
-    update_submodules_desc_file(root_directory, dict(), args.paths)
-
-    sys.exit(0)
-
-if (args.cmd[0] in aliases['from-official']):
-    if (len(args.paths) == 0):
-        print("Shallow initialization of all Official Git Submodules...")
-        git_shallow_submodule_init(root_directory, ".")
-        print("Done.")
-        args.paths = git_get_official_submodule_paths(root_directory)
-    else:
-        for path in args.paths:
-            print(
-                "Shallow Official Git Submodule initialization for \""
-                + path
-                + "\"..."
-            )
-            git_shallow_submodule_init(root_directory, path)
-            print("Done.")
-
-            if (path not in git_get_official_submodule_paths(root_directory)):
-                print(
-                    "[F] No Official Git Submodule registered at \""
-                    + path
-                    + "\".",
-                    file = sys.stderr
-                )
-                sys.exit(-1)
-
-
-    args.cmd[0] = "add"
-
-if (args.cmd[0] in aliases['add']):
-    for path in args.paths:
-        if (path not in submodule_dictionary):
-            new_module = GitSubmodule(path)
-            submodule_dictionary[path] = new_module
-            submodule_list.append(new_module)
-
-    args.cmd[0] = "update-desc"
-
-if (submodule_list == []):
-    print("[F] No submodules in " + root_directory + ".", file = sys.stderr)
-    sys.exit(-1)
-
-submodule_dictionary = restrict_dictionary_to(submodule_dictionary, args.paths)
-
-if (foreach_command is not None):
-    is_recursive = False
-    is_enabled_only = False
-
-    if (args.cmd[0] in aliases['foreach-recursive']):
-        is_recursive = True
-    elif (args.cmd[0] in aliases['foreach-enabled']):
-        is_enabled_only = True
-    elif (args.cmd[0] in aliases['foreach-enabled-recursive']):
-        is_enabled_only = True
-        is_recursive = True
-
-    apply_foreach_to(
-        submodule_dictionary,
-        is_recursive,
-        is_enabled_only,
-        [root_directory], # = traversed_submodules
-        foreach_command,
-        root_directory
-    )
-elif (args.cmd[0] in aliases['up-dir']):
-    apply_clone_to(submodule_dictionary, root_directory)
-    git_add_to_gitignore(
-        set([path for path in submodule_dictionary]),
-        root_directory
-    )
-elif (args.cmd[0] in aliases['status']):
-    apply_check_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] in aliases['rm']):
-    if (len(args.paths) == 0):
-        args.paths = [path for path in submodule_dictionary]
-
-    update_submodules_desc_file(root_directory, dict(), args.paths)
-    apply_clear_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] in aliases['rm-dir']):
-    apply_clear_to(submodule_dictionary, root_directory)
-elif (args.cmd[0] in aliases['up-desc']):
-    apply_update_desc_to(submodule_dictionary, root_directory)
-
-    update_submodules_desc_file(root_directory, submodule_dictionary, [])
-
-    print("updated description written.")
-
-    git_add_to_gitignore(
-        set([path for path in submodule_dictionary]),
-        root_directory
-    )
-else:
-    print("[F] Unknown command \"" + args.cmd[0] + "\".", file = sys.stderr)
-    sys.exit(-1)
