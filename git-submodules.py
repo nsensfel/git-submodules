@@ -33,7 +33,7 @@ def generate_variants (list_of_variant_list):
 # This makes it so that user don't have to remember much about the commands, as
 # whatever they think is the right command is likely an accepted variant of it.
 
-rm_variants = ['rm', 'remove']
+rm_variants = ['rm', 'remove', 'clear', 'del', 'delete']
 desc_variants = ['desc', 'description']
 dir_variants = [
     'dir',
@@ -51,14 +51,20 @@ up_variants = ['up', 'update']
 for_variants = ['for', 'foreach', 'for-all']
 rec_variants = ['rec', 'recursive']
 ena_variants = ['ena', 'enabled']
+add_variants = ["add"]
+help_variants = ["help", "-h", "--help"]
+seek_variants = ["seek", "suggest"]
+status_variants = ["status", "info"]
+from_official_variants = ["from-official"]
+to_official_variants = ["to-official"]
 
 aliases = dict()
-aliases['add'] = ["add"]
-aliases['help'] = ["help", "-h", "--help"]
-aliases['seek'] = ["seek", "suggest"]
-aliases['status'] = ["status", "info"]
-aliases['from-official'] = ["from-official"]
-aliases['to-official'] = ["to-official"]
+aliases['add'] = add_variants
+aliases['help'] = help_variants
+aliases['seek'] = seek_variants
+aliases['status'] = status_variants
+aliases['from-official'] = from_official_variants
+aliases['to-official'] = to_official_variants
 aliases['rm'] = rm_variants
 aliases['rm-desc'] = generate_variants([rm_variants, desc_variants])
 aliases['rm-dir'] = generate_variants([rm_variants, dir_variants])
@@ -274,6 +280,29 @@ def git_add_to_gitignore (entry_set, root_path):
             for new_entry in entry_set:
                 print(new_entry, file=file_stream)
 
+def git_remove_from_gitignore (path_list, root_path):
+    kept_content = list()
+
+    try:
+        with open(root_path + os.sep + ".gitignore", 'r') as file_stream:
+            for line in file_stream:
+                line = line.rstrip()
+
+                if (line not in path_list):
+                    kept_content.append(line.rstrip())
+    except FileNotFoundError:
+        print(
+            "No \""
+            + root_path
+            + os.sep
+            + ".gitignore\" file found. Nothing to remove from it."
+        )
+        return
+
+    with open(root_path + os.sep + ".gitignore", 'w') as file_stream:
+        for line in kept_content:
+            print(line, file=file_stream)
+
 def git_find_root_path ():
     # from https://stackoverflow.com/questions/22081209/find-the-root-of-the-git-repository-where-the-file-lives
     return subprocess.Popen(
@@ -417,7 +446,7 @@ class GitSubmodule:
             "\n".join(
                 [
                     name + " " + source
-                    for (name, source) in self.get_named_sources()
+                    for (name, source) in self.get_named_sources().items()
                 ]
             )
         )
@@ -903,6 +932,9 @@ def update_submodules_desc_file (
                 if (not submodule_path):
                     continue
 
+                if (submodule_path not in dict_of_submodules):
+                    continue
+
                 search = re.findall(r'^\s*source\s*=\s*([^\s].*[^\s])\s*', line)
 
                 if (search):
@@ -1186,7 +1218,7 @@ def apply_check_to (submodule_dictionary, root_path):
 
 def apply_update_desc_to (submodule_dictionary, root_path):
     for submodule_path in submodule_dictionary:
-        if (not submodules_dictionary[submodule_path].get_is_enabled()):
+        if (not submodule_dictionary[submodule_path].get_is_enabled()):
             print("Skipping disabled submodule \"" + submodule_path + "\".")
             continue
 
@@ -1351,7 +1383,7 @@ def handle_generic_help (invocation):
     )
     print(
         "EFFECT updates the description to include the selected official Git"
-        " Submodules. These must have been initialized."
+        " Submodules. These do not need to have been initialized."
     )
     print("")
     print("################")
@@ -1682,7 +1714,7 @@ def handle_add_command (paths):
 ################################################################################
 ##### FOREACH ##################################################################
 ################################################################################
-def handle_foreach_command (parameters, enabled_module_only, recursive):
+def handle_foreach_command (parameters, is_recursive, is_enabled_only):
     if (len(parameters) == 0):
         print(
             "[F] This command requires at least one parameter.",
@@ -1691,9 +1723,277 @@ def handle_foreach_command (parameters, enabled_module_only, recursive):
         handle_help_command(sys.argv[0], [sys.argv[1]])
         sys.exit(-1)
 
-    command = parameters.pop()
+    foreach_command = parameters.pop()
     paths = parameters
 
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_foreach_to(
+        submodule_dictionary,
+        is_recursive,
+        is_enabled_only,
+        [root_directory], # = traversed_submodules
+        foreach_command,
+        root_directory
+    )
+
+################################################################################
+##### FROM OFFICIAL ############################################################
+################################################################################
+def handle_from_official_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    if (len(paths) == 0):
+        print("Shallow initialization of all Official Git Submodules...")
+        git_shallow_submodule_init(root_directory, ".")
+        print("Done.")
+        paths = git_get_official_submodule_paths(root_directory)
+    else:
+        for path in paths:
+            print(
+                "Shallow Official Git Submodule initialization for \""
+                + path
+                + "\"..."
+            )
+            git_shallow_submodule_init(root_directory, path)
+            print("Done.")
+
+            if (path not in git_get_official_submodule_paths(root_directory)):
+                print(
+                    "[F] No Official Git Submodule registered at \""
+                    + path
+                    + "\".",
+                    file = sys.stderr
+                )
+                sys.exit(-1)
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    for path in paths:
+        if (path not in submodule_dictionary):
+            new_module = GitSubmodule(path)
+            submodule_dictionary[path] = new_module
+            submodule_list.append(new_module)
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_update_desc_to(submodule_dictionary, root_directory)
+
+    update_submodules_desc_file(root_directory, submodule_dictionary, [])
+
+    print("Updated description written.")
+
+    git_add_to_gitignore(
+        set([path for path in submodule_dictionary]),
+        root_directory
+    )
+
+################################################################################
+##### REMOVE ###################################################################
+################################################################################
+def handle_remove_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    if (len(paths) == 0):
+        paths = [path for path in submodule_dictionary]
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    update_submodules_desc_file(root_directory, dict(), paths)
+    apply_clear_to(submodule_dictionary, root_directory)
+    git_remove_from_gitignore(paths, root_directory)
+
+################################################################################
+##### REMOVE DESCRIPTION #######################################################
+################################################################################
+def handle_remove_description_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    if (len(paths) == 0):
+        paths = [path for path in submodule_dictionary]
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    update_submodules_desc_file(root_directory, dict(), paths)
+    git_remove_from_gitignore(paths, root_directory)
+
+################################################################################
+##### REMOVE DIRECTORY #########################################################
+################################################################################
+def handle_remove_directory_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    if (len(paths) == 0):
+        paths = [path for path in submodule_dictionary]
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_clear_to(submodule_dictionary, root_directory)
+
+################################################################################
+##### SEEK #####################################################################
+################################################################################
+def handle_seek_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_absolute_path(root_directory, current_directory, path)
+        for path in paths
+    ]
+    paths = [
+        path
+        for path in paths if (
+            os.path.isdir(path) and (path != root_directory)
+        )
+    ]
+
+    if (len(paths) == 0):
+        paths = get_path_of_direct_subdirectories(root_directory, [".git"])
+
+    list_all_non_submodule_subrepositories(
+        submodule_dictionary,
+        paths,
+        root_directory
+    )
+
+################################################################################
+##### STATUS ###################################################################
+################################################################################
+def handle_status_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_check_to(submodule_dictionary, root_directory)
+
+################################################################################
+##### TO OFFICIAL ##############################################################
+################################################################################
+def handle_to_official_command (paths):
+    print("[F] Command is not implemented.", file = sys.stderr)
+    sys.exit(-1)
+
+################################################################################
+##### UPDATE DESCRIPTION #######################################################
+################################################################################
+def handle_update_description_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_update_desc_to(submodule_dictionary, root_directory)
+
+    update_submodules_desc_file(root_directory, submodule_dictionary, [])
+
+    print("updated description written.")
+
+    git_add_to_gitignore(
+        set([path for path in submodule_dictionary]),
+        root_directory
+    )
+
+################################################################################
+##### UPDATE DIRECTORY #########################################################
+################################################################################
+def handle_update_directory_command (paths):
+    current_directory = os.getcwd()
+    root_directory = git_find_root_path()
+
+    (submodule_list, submodule_dictionary) = get_submodules_of(root_directory)
+
+    paths = [
+        resolve_relative_path(
+            root_directory,
+            current_directory,
+            path.rstrip(os.sep)
+        ) for path in paths
+    ]
+
+    submodule_dictionary = restrict_dictionary_to(submodule_dictionary, paths)
+
+    apply_clone_to(submodule_dictionary, root_directory)
+    git_add_to_gitignore(
+        set([path for path in submodule_dictionary]),
+        root_directory
+    )
 
 ################################################################################
 ##### MAIN #####################################################################
@@ -1753,15 +2053,15 @@ if (command in aliases['status']):
     sys.exit(0)
 
 if (command in aliases['to-official']):
-    handle_to_official_command(sys.arg[2:])
+    handle_to_official_command(sys.argv[2:])
     sys.exit(0)
 
 if (command in aliases['up-desc']):
-    handle_update_description_command(sys.arg[2:])
+    handle_update_description_command(sys.argv[2:])
     sys.exit(0)
 
 if (command in aliases['up-dir']):
-    handle_update_directory_command(sys.arg[2:])
+    handle_update_directory_command(sys.argv[2:])
     sys.exit(0)
 
 print("[F] Unknown command \"" + command + "\".", file = sys.stderr)
