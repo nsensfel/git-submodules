@@ -19,7 +19,7 @@ for submodules.
 ## How to use
 Usage: `git-submodules.py COMMAND PARAM0 PARAM1...`
 
-The important commands are "add", "status", "update-description", and "update-directory".
+The important commands are `add`, `status`, `update-description`, and `update-directory`.
 
 ---
 **COMMAND** `add`
@@ -69,6 +69,13 @@ The important commands are "add", "status", "update-description", and "update-di
 **PARAMETERS** one COMMAND.
 
 **EFFECT** provides detailed help about a command.
+
+---
+**COMMAND** `list`
+
+**PARAMETERS** list of local paths. The root repository's path is selected if no path is given.
+
+**EFFECT** lists all submodules in those directories.
 
 ---
 **COMMAND** `remove`
