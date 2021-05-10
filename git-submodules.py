@@ -1200,7 +1200,7 @@ def apply_clone_to (submodule_dictionary, force_target, root_path):
 
         (recursive_list, recursive_dictionary) = get_submodules_of(repo_path)
 
-        apply_clone_to(recursive_dictionary, False, root_path)
+        apply_clone_to(recursive_dictionary, False, repo_path)
 
         print ("Recursive clone in \"" + repo_path + "\" completed.")
 
