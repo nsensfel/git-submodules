@@ -57,6 +57,13 @@ The important commands are `add`, `status`, `update-description`, and `update-di
 **EFFECT** executes the shell command for each submodule. The execution recurses into each submodule. See `help foreach` for more details.
 
 ---
+**COMMAND** `match-target`
+
+**PARAMETERS** list of paths to submodules. All described submodules are selected if no path is given.
+
+**EFFECT** updates the submodule's local copy to match the submodule's target (instead of its commit) regardless of the 'target_overrides_commit' parameter, then updates the submodule's description so that it matches the updated local copy.
+
+---
 **COMMAND** `from-official`
 
 **PARAMETERS** list of local paths to official Git Submodules. All official Git Submdule are selected if no path is given.
@@ -147,7 +154,23 @@ The important commands are `add`, `status`, `update-description`, and `update-di
 * `SNSM_PARENT` is an absolute path to the direct parent repository.
 * `SNSM_PARENTS` is a newline separated list of absolute path to each of the parent repositories.
 
-## Example of .gitsubmodules
+## Syntax of .gitsubmodules
+
+Submodules are described in sections starting with `[submodule "<LOCAL_PATH>"]` with `<LOCAL_PATH>` being the submodule's local directory.
+
+The `source = <URL>` parameter specifies `<URL>` as a remote for the submodule. Multiple remotes can be specified. The order in which they are given will also be used when attempting to connect to them.
+
+The `commit = <HASH>` parameter specifies `<HASH>` as the commit for the submodule's working directory.
+
+The `target = commit <HASH>` parameter specifies that `<HASH>` is the reference commit for the submodule's working directory (it may differ from the current commit).
+The `target = branch <BRANCH_NAME>` parameter specifies that `<BRANCH_NAME>` is the reference branch for the submodule's working directory (it may differ from the current commit's).
+The `target = tag <TAG_NAME>` parameter specifies that `<TAG_NAME>` is the reference tag for the submodule's working directory (it may differ from the current commit's).
+
+The `target_overrides_commit = <True|False>` parameter specifies whether the `commit` parameter should be ignored in favor of the `target` one when updating the working directory. This is useful when wanting to always have the most up-to-date commit of a particular branch, for example.
+
+The `enable = <True|False>` parameter specifies whether the submodule is active or should be ignored.
+
+**Example**:
 ```
 [submodule "ardupilot"]
    source = git@my_local_server.userdomain:repos/ardupilot
@@ -158,6 +181,11 @@ The important commands are `add`, `status`, `update-description`, and `update-di
    source = git@my_local_server.userdomain:repos/git-submodules
    source = https://git.noot-noot.org/clone/git-submodules
    source = https://github.com/nsensfel/git-submodules
-   commit = d2c637e9f175b4a4618983253ec96a1edaff139b
+   target = commit d2c637e9f175b4a4618983253ec96a1edaff139b
+   enable = True
+[submodule "meta/meep-meep"]
+   source = git@my_local_server.userdomain:repos/meep-meep
+   target = branch dev
+   target_overrides_commit = True
    enable = True
 ```
