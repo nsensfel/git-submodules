@@ -159,6 +159,7 @@ The important commands are `add`, `status`, `update-description`, and `update-di
 Submodules are described in sections starting with `[submodule "<LOCAL_PATH>"]` with `<LOCAL_PATH>` being the submodule's local directory.
 
 The `source = <URL>` parameter specifies `<URL>` as a remote for the submodule. Multiple remotes can be specified. The order in which they are given will also be used when attempting to connect to them.
+The `source.<NAME> = <URL>` parameter specifies `<URL>` as the remote `<NAME>` for the submodule.
 
 The `commit = <HASH>` parameter specifies `<HASH>` as the commit for the submodule's working directory.
 
@@ -174,14 +175,15 @@ The `enable = <True|False>` parameter specifies whether the submodule is active 
 ```
 [submodule "ardupilot"]
    source = git@my_local_server.userdomain:repos/ardupilot
-   source = https://github.com/ArduPilot/ardupilot
+   source.github = https://github.com/ArduPilot/ardupilot
    commit = 30e8160aa191e0a0e3a4676b33e0f153d09856ff
    enable = True
 [submodule "meta/git-submodules"]
    source = git@my_local_server.userdomain:repos/git-submodules
-   source = https://git.noot-noot.org/clone/git-submodules
-   source = https://github.com/nsensfel/git-submodules
-   target = commit d2c637e9f175b4a4618983253ec96a1edaff139b
+   source.noot = https://git.noot-noot.org/clone/git-submodules
+   source.github = https://github.com/nsensfel/git-submodules
+   target = commit
+   commit = d2c637e9f175b4a4618983253ec96a1edaff139b
    enable = True
 [submodule "meta/meep-meep"]
    source = git@my_local_server.userdomain:repos/meep-meep
